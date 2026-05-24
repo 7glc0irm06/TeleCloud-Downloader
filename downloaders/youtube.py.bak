@@ -1,0 +1,275 @@
+import os
+import re
+import glob
+import time
+import threading
+import yt_dlp
+
+from config import bot, download_queue, stop_event, DOWNLOAD_DIR, cache_lock, url_cache
+from cookies import active_cookies_file
+from utils import (check_disk_space, get_free_space, cleanup_path,
+                   fmt_size, build_progress_msg, friendly_error)
+from uploaders.smart_dest import smart_dest
+
+# =============================================================
+# کمکی: markup لغو
+# =============================================================
+def _cancel_markup():
+    from telebot import types
+    m = types.InlineKeyboardMarkup()
+    m.add(types.InlineKeyboardButton("❌ لغو", callback_data="cancel_task"))
+    return m
+
+# =============================================================
+# اطلاعات سایز فرمت‌های یوتیوب
+# =============================================================
+def get_format_sizes(url: str) -> dict:
+    sizes = {}
+    cf    = active_cookies_file(url)
+    opts  = {'quiet': True, 'skip_download': True}
+    if cf:
+        opts['cookiefile'] = cf
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info    = ydl.extract_info(url, download=False)
+        formats = info.get('formats', [])
+        for h in (1080, 720, 480):
+            vf = next((f for f in reversed(formats)
+                       if f.get('height') == h and f.get('ext') == 'mp4'), None)
+            af = next((f for f in reversed(formats)
+                       if f.get('acodec') != 'none' and f.get('vcodec') == 'none'
+                       and f.get('ext') == 'm4a'), None)
+            if vf:
+                vs       = vf.get('filesize') or vf.get('filesize_approx') or 0
+                as_      = (af.get('filesize') or af.get('filesize_approx') or 0) if af else 0
+                sizes[h] = vs + as_
+        bf = next((f for f in reversed(formats)
+                   if f.get('vcodec') != 'none' and f.get('acodec') != 'none'), None)
+        if bf:
+            sizes['best'] = bf.get('filesize') or bf.get('filesize_approx') or 0
+        af = next((f for f in reversed(formats)
+                   if f.get('acodec') != 'none' and f.get('vcodec') == 'none'), None)
+        if af:
+            sizes['audio'] = af.get('filesize') or af.get('filesize_approx') or 0
+    except Exception:
+        pass
+    return sizes
+
+# =============================================================
+# دانلود تک ویدیوی یوتیوب
+# =============================================================
+def process_youtube_download(task):
+    from config import tg_upload_mode
+    chat_id = task['chat_id']
+    dest    = task.get('dest') or ('tg' if chat_id in tg_upload_mode else 'gd')
+
+    if not check_disk_space():
+        bot.send_message(chat_id, f"❌ فضای دیسک کافی نیست! فقط {get_free_space()} آزاد است.")
+        return
+
+    title_kw = task.get('title', 'video')
+    msg      = bot.send_message(chat_id, "🔗 ارتباط با سرور...", reply_markup=_cancel_markup())
+    last_upd = [time.time()]
+
+    def my_hook(d):
+        if stop_event.is_set():
+            raise Exception("لغو توسط کاربر")
+        if d['status'] == 'downloading' and time.time() - last_upd[0] > 3:
+            pct   = d.get('downloaded_bytes', 0)
+            total = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
+            speed = d.get('speed', 0) or 0
+            eta   = d.get('eta', 0) or 0
+            pct_f = (pct / total * 100) if total else 0
+            try:
+                bot.edit_message_text(
+                    build_progress_msg(pct_f, pct, total, speed, eta),
+                    chat_id, msg.message_id, reply_markup=_cancel_markup())
+            except Exception:
+                pass
+            last_upd[0] = time.time()
+
+    safe_title = re.sub(r'[\\/*?:"<>|]', '_', title_kw)[:50]
+    folder     = os.path.join(DOWNLOAD_DIR, safe_title)
+    os.makedirs(folder, exist_ok=True)
+
+    ydl_opts = {
+        'format':              task['format'],
+        'outtmpl':             os.path.join(folder, '%(title)s.%(ext)s'),
+        'progress_hooks':      [my_hook],
+        'noplaylist':          True,
+        'merge_output_format': 'mp4',
+        'postprocessors':      [],
+        'quiet':               True,
+        'extractor_args':      {'youtube': {'js_runtimes': ['node']}},
+        'no_warnings':         True,
+    }
+    if task.get('audio_only'):
+        ydl_opts['postprocessors'] = [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }]
+    cf = active_cookies_file(task.get('url', ''))
+    if cf:
+        ydl_opts['cookiefile'] = cf
+
+    file_path = None
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info      = ydl.extract_info(task['url'], download=True)
+            expected  = ydl.prepare_filename(info)
+            base      = os.path.splitext(expected)[0]
+            candidates = glob.glob(base + '.*')
+            file_path = max(candidates, key=os.path.getmtime) if candidates else None
+            if not file_path:
+                files = sorted(glob.glob(os.path.join(folder, '*')), key=os.path.getmtime)
+                file_path = files[-1] if files else None
+            if not file_path:
+                raise Exception("فایل دانلود شده پیدا نشد")
+
+        try:
+            bot.edit_message_text("☁️ آپلود به مقصد...", chat_id, msg.message_id)
+        except Exception:
+            pass
+        smart_dest(file_path, msg, dest, folder_name=safe_title)
+
+    except Exception as e:
+        if file_path:
+            cleanup_path(file_path)
+        _handle_yt_error(e, chat_id, msg)
+
+# =============================================================
+# دانلود پلی‌لیست یوتیوب
+# =============================================================
+def fetch_playlist_entries(url: str, cf=None) -> tuple:
+    opts = {'extract_flat': True, 'quiet': True, 'playlistend': 9999}
+    if cf:
+        opts['cookiefile'] = cf
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        return list(info.get('entries', [])), info.get('title', 'playlist')
+
+def process_playlist_download(task):
+    from config import tg_upload_mode
+    chat_id    = task['chat_id']
+    dest       = task.get('dest') or ('tg' if chat_id in tg_upload_mode else 'gd')
+    url        = task['url']
+    audio_only = task.get('audio_only', False)
+    fmt        = task.get('format', 'bestvideo+bestaudio/best')
+    indices    = task.get('indices', None)
+
+    if not check_disk_space():
+        bot.send_message(chat_id, f"❌ فضای دیسک کافی نیست! {get_free_space()} آزاد.")
+        return
+
+    msg = bot.send_message(chat_id, "📋 دریافت لیست...", reply_markup=_cancel_markup())
+    cf  = active_cookies_file(url)
+
+    try:
+        entries, pl_title = fetch_playlist_entries(url, cf)
+        if indices is not None:
+            entries = [e for i, e in enumerate(entries, 1) if i in indices]
+        pl_title = re.sub(r'[\\/*?:"<>|]', '_', pl_title)[:40]
+        total    = len(entries)
+    except Exception as e:
+        try:
+            bot.edit_message_text(f"❌ {friendly_error(str(e))}", chat_id, msg.message_id)
+        except Exception:
+            pass
+        return
+
+    folder    = os.path.join(DOWNLOAD_DIR, pl_title)
+    os.makedirs(folder, exist_ok=True)
+    completed = [0]
+    errors    = [0]
+    lock      = threading.Lock()
+    semaphore = threading.Semaphore(2)
+
+    def process_one(entry, idx):
+        if stop_event.is_set():
+            return
+        with semaphore:
+            if stop_event.is_set():
+                return
+            entry_url = entry.get('url') or f"https://www.youtube.com/watch?v={entry['id']}"
+            ydl_opts  = {
+                'format':              fmt,
+                'outtmpl':             os.path.join(folder, f"{idx:03d}_%(title)s.%(ext)s"),
+                'merge_output_format': 'mp4',
+                'quiet':               True,
+        'extractor_args':      {'youtube': {'js_runtimes': ['node']}},
+                'postprocessors':      [],
+            }
+            if audio_only:
+                ydl_opts['postprocessors'] = [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }]
+            if cf:
+                ydl_opts['cookiefile'] = cf
+
+            fp = None
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    dl_info   = ydl.extract_info(entry_url, download=True)
+                    expected  = ydl.prepare_filename(dl_info)
+                    base      = os.path.splitext(expected)[0]
+                    candidates = glob.glob(base + '.*')
+                    fp        = max(candidates, key=os.path.getmtime) if candidates else None
+
+                if fp and not stop_event.is_set():
+                    sub = bot.send_message(chat_id, f"⬆️ آپلود {idx}/{total}: {os.path.basename(fp)}")
+                    smart_dest(fp, sub, dest, folder_name=pl_title)
+
+                with lock:
+                    completed[0] += 1
+            except Exception:
+                if fp:
+                    cleanup_path(fp)
+                with lock:
+                    errors[0]    += 1
+                    completed[0] += 1
+
+            with lock:
+                done = completed[0]
+            from utils import make_progress_bar
+            try:
+                bar = make_progress_bar(done / total * 100)
+                bot.edit_message_text(
+                    f"📋 {pl_title}\n{bar} {done}/{total}\n"
+                    f"✅ {done - errors[0]}  ❌ {errors[0]}",
+                    chat_id, msg.message_id, reply_markup=_cancel_markup())
+            except Exception:
+                pass
+
+    threads = [threading.Thread(target=process_one, args=(e, i))
+               for i, e in enumerate(entries, 1)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    try:
+        bot.edit_message_text(
+            f"✅ پلی‌لیست تموم شد!\n📁 {pl_title}\nموفق: {total - errors[0]} / {total}",
+            chat_id, msg.message_id)
+    except Exception:
+        pass
+
+# =============================================================
+# خطا handler
+# =============================================================
+def _handle_yt_error(e, chat_id, msg):
+    err = str(e)
+    if "لغو" in err:
+        try:
+            bot.edit_message_text("🚫 دانلود لغو شد.", chat_id, msg.message_id)
+        except Exception:
+            pass
+    else:
+        text = f"❌ {friendly_error(err)}"
+        try:
+            bot.edit_message_text(text, chat_id, msg.message_id)
+        except Exception:
+            bot.send_message(chat_id, text)

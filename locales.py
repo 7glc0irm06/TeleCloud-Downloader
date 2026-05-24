@@ -1,0 +1,1045 @@
+"""
+Centralized localization strings for the bilingual bot (Persian / English).
+
+Usage:
+    from locales import t
+    bot.send_message(cid, t(cid, 'welcome'))
+    bot.send_message(cid, t(cid, 'queue_added', pos=3))
+"""
+
+from user_langs import get_lang
+
+# ==============================================================
+# All user-facing strings, keyed by a short label.
+# 'fa' strings are identical to the original Persian messages.
+# ==============================================================
+STRINGS = {
+
+    # ── Language selection ─────────────────────────────────────
+    'lang_select': {
+        'fa': "Please select your language / لطفاً زبان خود را انتخاب کنید",
+        'en': "Please select your language / لطفاً زبان خود را انتخاب کنید",
+    },
+    'btn_english': {
+        'fa': "English",
+        'en': "English",
+    },
+    'btn_persian': {
+        'fa': "فارسی",
+        'en': "فارسی",
+    },
+
+    # ── Auth ───────────────────────────────────────────────────
+    'ask_password': {
+        'fa': "سلام! رمز عبور را وارد کنید:",
+        'en': "Hello! Please enter the password:",
+    },
+    'ask_password_file': {
+        'fa': "ابتدا رمز عبور را وارد کنید:",
+        'en': "Please enter the password first:",
+    },
+    'wrong_password': {
+        'fa': "❌ رمز اشتباه.",
+        'en': "❌ Wrong password.",
+    },
+    'welcome': {
+        'fa': "✅ خوش آمدید!",
+        'en': "✅ Welcome!",
+    },
+    'bot_ready': {
+        'fa': "✅ ربات آماده است.",
+        'en': "✅ Bot is ready.",
+    },
+
+    # ── Cookie manager ─────────────────────────────────────────
+    'cookie_received_ask_name': {
+        'fa': "✅ فایل دریافت شد.\nنام این کوکی را بفرستید:\n(مثلاً: instagram، default)",
+        'en': "✅ File received.\nSend a name for this cookie:\n(e.g.: instagram, default)",
+    },
+    'cookie_saved': {
+        'fa': "✅ کوکی «{name}» ذخیره شد.",
+        'en': "✅ Cookie '{name}' saved.",
+    },
+    'cookie_error': {
+        'fa': "❌ خطا: {e}",
+        'en': "❌ Error: {e}",
+    },
+    'cookie_need_txt': {
+        'fa': "❌ لطفاً یک فایل .txt بفرستید.",
+        'en': "❌ Please send a .txt file.",
+    },
+    'cookie_invalid_name': {
+        'fa': "❌ نام معتبر نیست.",
+        'en': "❌ Invalid name.",
+    },
+    'cookie_data_not_found': {
+        'fa': "❌ داده کوکی پیدا نشد.",
+        'en': "❌ Cookie data not found.",
+    },
+    'cookie_invalid_format': {
+        'fa': "❌ فرمت کوکی صحیح نیست.",
+        'en': "❌ Invalid cookie format.",
+    },
+    'cookie_text_received': {
+        'fa': "✅ دریافت شد.\nنام این کوکی را بفرستید:",
+        'en': "✅ Received.\nSend a name for this cookie:",
+    },
+    'cookie_rename_done': {
+        'fa': "✅ نام به «{new_name}» تغییر یافت.",
+        'en': "✅ Renamed to '{new_name}'.",
+    },
+    'cookie_rename_ask': {
+        'fa': "نام جدید برای «{name}» را بفرستید:",
+        'en': "Send the new name for '{name}':",
+    },
+    'cookie_manage': {
+        'fa': "🍪 مدیریت کوکی‌ها:",
+        'en': "🍪 Cookie Manager:",
+    },
+    'cookie_none': {
+        'fa': "❌ هیچ کوکی‌ای ندارید",
+        'en': "❌ No cookies found",
+    },
+    'cookie_add': {
+        'fa': "➕ افزودن کوکی جدید",
+        'en': "➕ Add New Cookie",
+    },
+    'cookie_help_btn': {
+        'fa': "راهنما",
+        'en': "Help",
+    },
+    'cookie_back_btn': {
+        'fa': "بازگشت",
+        'en': "Back",
+    },
+    'cookie_status': {
+        'fa': "🍪 کوکی: {name}\nوضعیت: {status}",
+        'en': "🍪 Cookie: {name}\nStatus: {status}",
+    },
+    'cookie_status_active': {
+        'fa': "✅ فعال",
+        'en': "✅ Active",
+    },
+    'cookie_status_inactive': {
+        'fa': "⛔ غیرفعال",
+        'en': "⛔ Disabled",
+    },
+    'cookie_enable_btn': {
+        'fa': "✅ فعال کردن",
+        'en': "✅ Enable",
+    },
+    'cookie_disable_btn': {
+        'fa': "⛔ غیرفعال کردن",
+        'en': "⛔ Disable",
+    },
+    'cookie_rename_btn': {
+        'fa': "✏️ تغییر نام",
+        'en': "✏️ Rename",
+    },
+    'cookie_delete_btn': {
+        'fa': "🗑 حذف",
+        'en': "🗑 Delete",
+    },
+    'cookie_back_list_btn': {
+        'fa': "🔙 بازگشت به لیست",
+        'en': "🔙 Back to List",
+    },
+    'cookie_enabled_toast': {
+        'fa': "✅ {name} فعال شد.",
+        'en': "✅ {name} enabled.",
+    },
+    'cookie_enabled_msg': {
+        'fa': "🍪 {name}\n✅ فعال",
+        'en': "🍪 {name}\n✅ Active",
+    },
+    'cookie_disabled_toast': {
+        'fa': "⛔ {name} غیرفعال شد.",
+        'en': "⛔ {name} disabled.",
+    },
+    'cookie_disabled_msg': {
+        'fa': "🍪 {name}\n⛔ غیرفعال",
+        'en': "🍪 {name}\n⛔ Disabled",
+    },
+    'cookie_deleted_toast': {
+        'fa': "🗑 {name} حذف شد.",
+        'en': "🗑 {name} deleted.",
+    },
+    'cookie_no_cookies_toast': {
+        'fa': "هیچ کوکی‌ای ندارید.",
+        'en': "No cookies found.",
+    },
+    'cookie_help': {
+        'fa': (
+            "🍪 راهنمای گرفتن کوکی:\n\n"
+            "1 افزونه Get cookies.txt LOCALLY رو توی کروم نصب کن\n\n"
+            "2 وارد سایت مورد نظر بشو\n\n"
+            "3 روی آیکون افزونه کلیک کن و Export بزن\n\n"
+            "4 فایل رو اینجا بفرست\n\n"
+            "نام‌گذاری:\n"
+            "• فایل رو با اسم سایت بفرست — مثلاً instagram.txt\n"
+            "• یا بعد از ارسال ازت اسم میپرسم\n"
+            "• اسم default برای همه سایت‌ها استفاده میشه\n\n"
+            "فرمت باید Netscape باشه:\n"
+            "خط اول: # Netscape HTTP Cookie File"
+        ),
+        'en': (
+            "🍪 How to get cookies:\n\n"
+            "1 Install the 'Get cookies.txt LOCALLY' extension in Chrome\n\n"
+            "2 Log in to the target website\n\n"
+            "3 Click the extension icon and press Export\n\n"
+            "4 Send the file here\n\n"
+            "Naming:\n"
+            "• Send the file named after the site — e.g. instagram.txt\n"
+            "• Or I'll ask you for a name after you send it\n"
+            "• The name 'default' is used for all sites\n\n"
+            "Format must be Netscape:\n"
+            "First line: # Netscape HTTP Cookie File"
+        ),
+    },
+
+    # ── File reception ─────────────────────────────────────────
+    'receiving_file': {
+        'fa': "📥 دریافت فایل...",
+        'en': "📥 Receiving file...",
+    },
+    'unsupported_type': {
+        'fa': "⚠️ نوع فایل پشتیبانی نمیشه.",
+        'en': "⚠️ Unsupported file type.",
+    },
+
+    # ── Main menu buttons ──────────────────────────────────────
+    'btn_ytdlp': {
+        'fa': "🔽 دانلود با yt-dlp",
+        'en': "🔽 Download with yt-dlp",
+    },
+    'btn_torrent': {
+        'fa': "🧲 دانلود تورنت",
+        'en': "🧲 Download Torrent",
+    },
+    'btn_direct': {
+        'fa': "🌐 دانلود لینک مستقیم",
+        'en': "🌐 Direct Link Download",
+    },
+    'btn_cookie': {
+        'fa': "🍪 مدیریت کوکی",
+        'en': "🍪 Cookie Manager",
+    },
+    'btn_queue': {
+        'fa': "📊 وضعیت صف",
+        'en': "📊 Queue Status",
+    },
+    'btn_cancel': {
+        'fa': "❌ لغو عملیات فعلی",
+        'en': "❌ Cancel Current Task",
+    },
+    'btn_upload_tg': {
+        'fa': "📱 آپلود: تلگرام",
+        'en': "📱 Upload: Telegram",
+    },
+    'btn_upload_gd': {
+        'fa': "☁️ آپلود: درایو",
+        'en': "☁️ Upload: Drive",
+    },
+    'btn_help': {
+        'fa': "ℹ️ راهنما",
+        'en': "ℹ️ Help",
+    },
+    'btn_change_lang': {
+        'fa': "تغییر زبان 🌐",
+        'en': "Change Language 🌐",
+    },
+    'btn_settings': {
+        'fa': "تنظیمات ⚙️",
+        'en': "Settings ⚙️",
+    },
+
+    # ── Settings panel ─────────────────────────────────────────
+    'settings_panel_title': {
+        'fa': "⚙️ پنل تنظیمات",
+        'en': "⚙️ Control Panel",
+    },
+    'btn_mode_ytdlp': {
+        'fa': "yt-dlp",
+        'en': "yt-dlp",
+    },
+    'btn_mode_torrent': {
+        'fa': "Torrent",
+        'en': "Torrent",
+    },
+    'btn_mode_direct': {
+        'fa': "Direct Link",
+        'en': "Direct Link",
+    },
+    'btn_mode_auto': {
+        'fa': "Auto Detect",
+        'en': "Auto Detect",
+    },
+    'changed_success_msg': {
+        'fa': "✅ تنظیم شد.",
+        'en': "✅ Setting applied.",
+    },
+    'mode_set_toast': {
+        'fa': "✅ حالت دانلود تغییر کرد.",
+        'en': "✅ Download mode changed.",
+    },
+    'upload_set_toast': {
+        'fa': "✅ مقصد آپلود تغییر کرد.",
+        'en': "✅ Upload destination changed.",
+    },
+    'quality_set_toast': {
+        'fa': "✅ کیفیت: {label}",
+        'en': "✅ Quality: {label}",
+    },
+    'media_set_toast': {
+        'fa': "✅ مدیا: {label}",
+        'en': "✅ Media: {label}",
+    },
+
+    'quality_2160': {
+        'fa': "🎥 کیفیت: 2160p (4K)",
+        'en': "🎥 Quality: 2160p (4K)",
+    },
+    'quality_1440': {
+        'fa': "🖥️ کیفیت: 1440p (2K)",
+        'en': "🖥️ Quality: 1440p (2K)",
+    },
+    'quality_manual': {
+        'fa': "🎯 کیفیت: دستی",
+        'en': "🎯 Quality: Manual",
+    },
+    'quality_best': {
+        'fa': "⭐ کیفیت: بهترین",
+        'en': "⭐ Quality: Best",
+    },
+    'quality_1080': {
+        'fa': "📺 کیفیت: 1080p",
+        'en': "📺 Quality: 1080p",
+    },
+    'quality_720': {
+        'fa': "📺 کیفیت: 720p",
+        'en': "📺 Quality: 720p",
+    },
+    'quality_480': {
+        'fa': "📺 کیفیت: 480p",
+        'en': "📺 Quality: 480p",
+    },
+
+    # ── Audio quality labels ────────────────────────────────────
+    'audio_quality_320': {
+        'fa': "🎵 کیفیت: 320kbps",
+        'en': "🎵 Quality: 320kbps",
+    },
+    'audio_quality_128': {
+        'fa': "🎵 کیفیت: 128kbps",
+        'en': "🎵 Quality: 128kbps",
+    },
+    'audio_quality_default': {
+        'fa': "🎵 کیفیت: پیش‌فرض",
+        'en': "🎵 Quality: Default",
+    },
+
+    # ── Video format (container) labels ────────────────────────
+    'format_mp4': {
+        'fa': "📦 فرمت: MP4",
+        'en': "📦 Format: MP4",
+    },
+    'format_mkv': {
+        'fa': "📦 فرمت: MKV",
+        'en': "📦 Format: MKV",
+    },
+    'format_default': {
+        'fa': "📦 فرمت: پیش‌فرض",
+        'en': "📦 Format: Default",
+    },
+
+    # ── Audio format (codec) labels ────────────────────────────
+    'format_mp3': {
+        'fa': "🎙️ فرمت: MP3",
+        'en': "🎙️ Format: MP3",
+    },
+    'format_m4a': {
+        'fa': "🎙️ فرمت: M4A",
+        'en': "🎙️ Format: M4A",
+    },
+    'format_flac': {
+        'fa': "🎙️ فرمت: FLAC",
+        'en': "🎙️ Format: FLAC",
+    },
+
+    # ── Subtitle button labels ─────────────────────────────────
+    'btn_subtitle_en': {
+        'fa': "💬 زیرنویس: انگلیسی",
+        'en': "💬 Subtitle: English",
+    },
+    'btn_subtitle_fa': {
+        'fa': "💬 زیرنویس: فارسی",
+        'en': "💬 Subtitle: Persian",
+    },
+    'btn_subtitle_off': {
+        'fa': "💬 زیرنویس: خاموش",
+        'en': "💬 Subtitle: Off",
+    },
+
+    # ── Chapters button labels ─────────────────────────────────
+    'btn_chapters_on': {
+        'fa': "📑 فصل‌ها: روشن",
+        'en': "📑 Chapters: On",
+    },
+    'btn_chapters_off': {
+        'fa': "📑 فصل‌ها: خاموش",
+        'en': "📑 Chapters: Off",
+    },
+
+    # ── Settings toast messages ────────────────────────────────
+    'format_set_toast': {
+        'fa': "✅ فرمت: {label}",
+        'en': "✅ Format: {label}",
+    },
+    'subtitle_set_toast': {
+        'fa': "✅ زیرنویس: {label}",
+        'en': "✅ Subtitle: {label}",
+    },
+    'chapters_set_toast': {
+        'fa': "✅ فصل‌ها: {label}",
+        'en': "✅ Chapters: {label}",
+    },
+
+    # ── Subtitle not found warning (appended to upload completion message) ──
+    'subtitle_not_found_warn': {
+        'fa': "\n⚠️ ویدیو دانلود شد، اما زیرنویس درخواستی پیدا نشد.",
+        'en': "\n⚠️ The video was downloaded, but the requested subtitle was not found.",
+    },
+
+    'media_video': {
+        'fa': "🎬 مدیا: ویدیو",
+        'en': "🎬 Media: Video",
+    },
+    'media_audio': {
+        'fa': "🎵 مدیا: موسیقی",
+        'en': "🎵 Media: Music",
+    },
+
+
+    # ── Menu messages ──────────────────────────────────────────
+    'ytdlp_activated': {
+        'fa': (
+            "🔽 موتور yt-dlp فعال شد.\n\n"
+            "لینک بفرستید — یوتیوب، اینستاگرام، توییتر، ساوندکلاد و هر سایت پشتیبانی‌شده‌ای:"
+        ),
+        'en': (
+            "🔽 yt-dlp engine activated.\n\n"
+            "Send a link — YouTube, Instagram, Twitter, SoundCloud, and any supported site:"
+        ),
+    },
+    'ask_magnet': {
+        'fa': "لینک مگنت را بفرستید:",
+        'en': "Send the magnet link:",
+    },
+    'ask_direct': {
+        'fa': "لینک دانلود را بفرستید:",
+        'en': "Send the download link:",
+    },
+
+    # ── Queue status ───────────────────────────────────────────
+    'queue_running': {
+        'fa': "▶️ در حال اجرا:\n{type} | {title}\n",
+        'en': "▶️ Running:\n{type} | {title}\n",
+    },
+    'queue_nothing_running': {
+        'fa': "▶️ در حال اجرا: ندارد\n",
+        'en': "▶️ Running: none\n",
+    },
+    'queue_empty': {
+        'fa': "مورد دیگری در صف نیست.",
+        'en': "No other items in queue.",
+    },
+    'queue_waiting': {
+        'fa': "🔢 منتظر در صف ({count} مورد):",
+        'en': "🔢 Waiting in queue ({count} items):",
+    },
+    'queue_unknown': {
+        'fa': "نامشخص",
+        'en': "Unknown",
+    },
+    'queue_clear_btn': {
+        'fa': "🗑 پاک کردن کل صف",
+        'en': "🗑 Clear All Queue",
+    },
+    'queue_refresh_btn': {
+        'fa': "🔄 رفرش",
+        'en': "🔄 Refresh",
+    },
+    'queue_cleared_toast': {
+        'fa': "✅ صف پاک شد.",
+        'en': "✅ Queue cleared.",
+    },
+    'queue_removed_toast': {
+        'fa': "✅ حذف شد",
+        'en': "✅ Removed",
+    },
+    'queue_not_found_toast': {
+        'fa': "❌ یافت نشد",
+        'en': "❌ Not found",
+    },
+    'queue_refreshed_toast': {
+        'fa': "🔄 بروزرسانی شد.",
+        'en': "🔄 Refreshed.",
+    },
+
+    # ── Cancel ─────────────────────────────────────────────────
+    'cancel_requested': {
+        'fa': "🚫 درخواست لغو ارسال شد.",
+        'en': "🚫 Cancel request sent.",
+    },
+    'cancel_nothing': {
+        'fa': "هیچ عملیاتی در حال اجرا نیست.",
+        'en': "No operation is currently running.",
+    },
+    'cancel_no_task_toast': {
+        'fa': "عملیاتی نیست.",
+        'en': "No operation running.",
+    },
+    'upload_cancelled_toast': {
+        'fa': "🚫 آپلود لغو شد.",
+        'en': "🚫 Upload cancelled.",
+    },
+
+    # ── Upload toggle ──────────────────────────────────────────
+    'dest_gdrive': {
+        'fa': "☁️ مقصد پیش‌فرض: گوگل درایو",
+        'en': "☁️ Default destination: Google Drive",
+    },
+    'dest_tg': {
+        'fa': "📱 مقصد پیش‌فرض: تلگرام",
+        'en': "📱 Default destination: Telegram",
+    },
+    'dest_gdrive_toast': {
+        'fa': "☁️ مقصد: گوگل درایو",
+        'en': "☁️ Destination: Google Drive",
+    },
+    'dest_tg_toast': {
+        'fa': "📱 مقصد: تلگرام",
+        'en': "📱 Destination: Telegram",
+    },
+
+    # ── Quality / media mode ───────────────────────────────────
+    'quality_set': {
+        'fa': "✅ کیفیت پیش‌فرض: {label}",
+        'en': "✅ Default quality: {label}",
+    },
+    'audio_on': {
+        'fa': "🎵 حالت موسیقی فعال شد — دانلودها به MP3 تبدیل میشن.",
+        'en': "🎵 Music mode activated — downloads will be converted to MP3.",
+    },
+    'audio_off': {
+        'fa': "🎬 حالت ویدیو فعال شد.",
+        'en': "🎬 Video mode activated.",
+    },
+
+    # ── Help ───────────────────────────────────────────────────
+    'help_text': {
+        'fa': (
+            "📖 راهنما:\n\n"
+            "🔽 yt-dlp: یوتیوب، اینستاگرام، توییتر، ساوندکلاد و هر سایت پشتیبانی‌شده\n"
+            "🧲 تورنت: لینک magnet (با health check و timeout 20min)\n"
+            "🌐 لینک مستقیم: GitHub، F-Droid، ...\n"
+            "🍪 کوکی: چند کوکی با نام مجزا\n"
+            "📎 فایل: آپلود مستقیم به درایو\n\n"
+            "☁️/📱 تاگل: مقصد پیش‌فرض رو تغییر بده\n"
+            "🎯 کیفیت: کیفیت پیش‌فرض رو تنظیم کن (دستی = هر بار میپرسه)\n"
+            "⚠️ تورنت بدون پیشرفت در 20 دقیقه لغو میشه"
+        ),
+        'en': (
+            "📖 Help:\n\n"
+            "🔽 yt-dlp: YouTube, Instagram, Twitter, SoundCloud, and any supported site\n"
+            "🧲 Torrent: magnet link (with health check and 20min timeout)\n"
+            "🌐 Direct link: GitHub, F-Droid, ...\n"
+            "🍪 Cookie: multiple cookies with separate names\n"
+            "📎 File: upload directly to Drive\n\n"
+            "☁️/📱 Toggle: change the default destination\n"
+            "🎯 Quality: set default quality (manual = asks every time)\n"
+            "⚠️ Torrent with no progress in 20 minutes will be cancelled"
+        ),
+    },
+
+    # ── Link handling ──────────────────────────────────────────
+    'invalid_link': {
+        'fa': "❓ لینک معتبر نیست.",
+        'en': "❓ Invalid link.",
+    },
+    'unknown_link': {
+        'fa': "❓ لینک شناخته‌شده‌ای نیست.",
+        'en': "❓ Unrecognized link.",
+    },
+    'not_youtube': {
+        'fa': "❌ لینک یوتیوب نیست.",
+        'en': "❌ Not a YouTube link.",
+    },
+    'not_magnet': {
+        'fa': "❌ لینک مگنت نیست.",
+        'en': "❌ Not a magnet link.",
+    },
+    'checking_link': {
+        'fa': "🔍 بررسی لینک...",
+        'en': "🔍 Checking link...",
+    },
+    'fetching_info': {
+        'fa': "🔍 دریافت اطلاعات از {domain}...",
+        'en': "🔍 Fetching info from {domain}...",
+    },
+    'unknown_title': {
+        'fa': "نامشخص",
+        'en': "Unknown",
+    },
+
+    # ── YouTube ────────────────────────────────────────────────
+    'yt_playlist_label': {
+        'fa': "📺 پلی‌لیست ویدیو ({count})",
+        'en': "📺 Video Playlist ({count})",
+    },
+    'yt_playlist_mp3': {
+        'fa': "🎵 پلی‌لیست MP3",
+        'en': "🎵 MP3 Playlist",
+    },
+    'yt_playlist_info': {
+        'fa': "📋 {title}\n{count} ویدیو",
+        'en': "📋 {title}\n{count} videos",
+    },
+    'ask_dest': {
+        'fa': "مقصد:",
+        'en': "Destination:",
+    },
+    'btn_tg': {
+        'fa': "📱 تلگرام",
+        'en': "📱 Telegram",
+    },
+    'btn_gd': {
+        'fa': "☁️ گوگل درایو",
+        'en': "☁️ Google Drive",
+    },
+    'yt_audio_dest_msg': {
+        'fa': "🎬 {title}\n⏱ {m}:{s}\n🎵 MP3\nمقصد:",
+        'en': "🎬 {title}\n⏱ {m}:{s}\n🎵 MP3\nDestination:",
+    },
+    'yt_quality_dest_msg': {
+        'fa': "🎬 {title}\n⏱ {m}:{s}\nکیفیت: {quality}\nمقصد:",
+        'en': "🎬 {title}\n⏱ {m}:{s}\nQuality: {quality}\nDestination:",
+    },
+    'yt_queued': {
+        'fa': "✅ ثبت شد.\n🎬 {title}\n{quality} | {dest_icon}\n🔢 جایگاه: {pos}",
+        'en': "✅ Queued.\n🎬 {title}\n{quality} | {dest_icon}\n🔢 Position: {pos}",
+    },
+    'fetching_quality': {
+        'fa': "⏳ دریافت اطلاعات کیفیت‌ها...",
+        'en': "⏳ Fetching quality info...",
+    },
+    'select_quality': {
+        'fa': "🎬 {title}\n⏱ {m}:{s}\nکیفیت را انتخاب کنید:",
+        'en': "🎬 {title}\n⏱ {m}:{s}\nSelect quality:",
+    },
+    'best_quality': {
+        'fa': "⭐ بهترین",
+        'en': "⭐ Best",
+    },
+    'yt_quality_dest_only': {
+        'fa': "کیفیت: {quality}\nمقصد:",
+        'en': "Quality: {quality}\nDestination:",
+    },
+    'yt_queued_cb': {
+        'fa': "✅ ثبت شد.\n{quality} | {dest_icon}\n🔢 جایگاه: {pos}",
+        'en': "✅ Queued.\n{quality} | {dest_icon}\n🔢 Position: {pos}",
+    },
+    'invalid_option_toast': {
+        'fa': "گزینه نامعتبر.",
+        'en': "Invalid option.",
+    },
+    'link_expired_toast': {
+        'fa': "لینک منقضی شده.",
+        'en': "Link has expired.",
+    },
+
+    # ── Torrent ────────────────────────────────────────────────
+    'torrent_queued': {
+        'fa': "🧲 به صف افزوده شد. {dest_icon}",
+        'en': "🧲 Added to queue. {dest_icon}",
+    },
+    'torrent_queued_cb': {
+        'fa': "🧲 به صف افزوده شد.\n{dest_icon}",
+        'en': "🧲 Added to queue.\n{dest_icon}",
+    },
+    'torrent_cancelled': {
+        'fa': "انصراف.",
+        'en': "Cancelled.",
+    },
+    'torrent_cancel_msg': {
+        'fa': "❌ لغو شد.",
+        'en': "❌ Cancelled.",
+    },
+
+    # ── Direct link ────────────────────────────────────────────
+    'direct_queued': {
+        'fa': "✅ به صف افزوده شد. {dest_icon}",
+        'en': "✅ Added to queue. {dest_icon}",
+    },
+    'direct_queued_cb': {
+        'fa': "✅ به صف.\n{dest_icon}",
+        'en': "✅ Queued.\n{dest_icon}",
+    },
+
+    # ── Social media ───────────────────────────────────────────
+    'social_queued': {
+        'fa': "✅ به صف.\n🌐 {domain}\n🎵 MP3 | {dest_icon}",
+        'en': "✅ Queued.\n🌐 {domain}\n🎵 MP3 | {dest_icon}",
+    },
+    'social_audio_dest_msg': {
+        'fa': "🌐 {domain}\n🎵 MP3\nمقصد:",
+        'en': "🌐 {domain}\n🎵 MP3\nDestination:",
+    },
+    'social_quality_dest_msg': {
+        'fa': "🌐 {domain}\nکیفیت: {quality}\nمقصد:",
+        'en': "🌐 {domain}\nQuality: {quality}\nDestination:",
+    },
+    'social_quality_queued': {
+        'fa': "✅ به صف.\n🌐 {domain}\nکیفیت: {quality} | {dest_icon}",
+        'en': "✅ Queued.\n🌐 {domain}\nQuality: {quality} | {dest_icon}",
+    },
+    'social_select_quality': {
+        'fa': "🌐 {title}\nکیفیت را انتخاب کنید:",
+        'en': "🌐 {title}\nSelect quality:",
+    },
+    'best_quality_btn': {
+        'fa': "⭐ بهترین کیفیت",
+        'en': "⭐ Best Quality",
+    },
+    'social_added_to_queue': {
+        'fa': "⬇️ به صف افزوده شد. {dest_icon}",
+        'en': "⬇️ Added to queue. {dest_icon}",
+    },
+    'social_added_cb': {
+        'fa': "⬇️ به صف افزوده شد...",
+        'en': "⬇️ Added to queue...",
+    },
+    'select_dest': {
+        'fa': "مقصد را انتخاب کنید:",
+        'en': "Select destination:",
+    },
+
+    # ── Playlist ───────────────────────────────────────────────
+    'playlist_quality': {
+        'fa': "کیفیت پلی‌لیست:",
+        'en': "Playlist quality:",
+    },
+    'playlist_count_ask': {
+        'fa': "{media}\nچند تا دانلود کنم?",
+        'en': "{media}\nHow many to download?",
+    },
+    'playlist_all_btn': {
+        'fa': "همه",
+        'en': "All",
+    },
+    'playlist_custom_btn': {
+        'fa': "✏️ تعداد دلخواه",
+        'en': "✏️ Custom Count",
+    },
+    'playlist_ask_custom': {
+        'fa': "تعداد مورد نظر را وارد کنید (عدد):",
+        'en': "Enter the desired count (number):",
+    },
+    'playlist_invalid_count': {
+        'fa': "❌ عدد معتبر وارد کنید.",
+        'en': "❌ Please enter a valid number.",
+    },
+    'playlist_link_expired': {
+        'fa': "❌ لینک منقضی شده.",
+        'en': "❌ Link has expired.",
+    },
+    'playlist_queued': {
+        'fa': "✅ به صف افزوده شد.\n{count} عدد | {dest_icon}",
+        'en': "✅ Added to queue.\n{count} items | {dest_icon}",
+    },
+    'playlist_queued_cb': {
+        'fa': "✅ به صف.\n{count} عدد | {dest_icon}",
+        'en': "✅ Queued.\n{count} items | {dest_icon}",
+    },
+    'playlist_dest_msg': {
+        'fa': "{media} — {count} عدد\nمقصد:",
+        'en': "{media} — {count} items\nDestination:",
+    },
+    'playlist_media_video': {
+        'fa': "📺 {quality}",
+        'en': "📺 {quality}",
+    },
+    'playlist_media_audio': {
+        'fa': "🎵 MP3",
+        'en': "🎵 MP3",
+    },
+
+    # ── Downloader status messages ─────────────────────────────
+    'disk_no_space': {
+        'fa': "❌ فضای دیسک کافی نیست! {free} آزاد است.",
+        'en': "❌ Not enough disk space! {free} free.",
+    },
+    'connecting_youtube': {
+        'fa': "🔗 ارتباط با سرور یوتیوب...",
+        'en': "🔗 Connecting to YouTube server...",
+    },
+    'cancel_btn': {
+        'fa': "❌ لغو",
+        'en': "❌ Cancel",
+    },
+    'download_cancelled': {
+        'fa': "🚫 دانلود لغو شد.",
+        'en': "🚫 Download cancelled.",
+    },
+    'processing_file': {
+        'fa': "☁️ پردازش فایل و آماده‌سازی برای آپلود...",
+        'en': "☁️ Processing file and preparing for upload...",
+    },
+    'fetching_playlist': {
+        'fa': "📋 دریافت لیست پلی‌لیست...",
+        'en': "📋 Fetching playlist...",
+    },
+    'uploading_item': {
+        'fa': "⬆️ آپلود {idx}/{total}: {name}",
+        'en': "⬆️ Uploading {idx}/{total}: {name}",
+    },
+    'playlist_done': {
+        'fa': "✅ پلی‌لیست تموم شد!\n📁 {title}\nموفق: {ok} / {total}",
+        'en': "✅ Playlist complete!\n📁 {title}\nSuccess: {ok} / {total}",
+    },
+    'torrent_checking': {
+        'fa': "🔍 بررسی سلامت تورنت...",
+        'en': "🔍 Checking torrent health...",
+    },
+    'torrent_size_unknown': {
+        'fa': "نامشخص",
+        'en': "Unknown",
+    },
+    'torrent_verdict_none': {
+        'fa': "🔴 هیچ seeder ای نیست",
+        'en': "🔴 No seeders",
+    },
+    'torrent_verdict_slow': {
+        'fa': "🟡 {sd} seeder — کند",
+        'en': "🟡 {sd} seeder(s) — slow",
+    },
+    'torrent_verdict_ok': {
+        'fa': "🟢 {sd} seeder — سالم",
+        'en': "🟢 {sd} seeder(s) — healthy",
+    },
+    'torrent_confirm_msg': {
+        'fa': "📊 نتیجه بررسی:\nحجم: {size}\n🌱 Seeder: {sd} | 📥 Leecher: {lc}\n{verdict}\n\nادامه بدم؟",
+        'en': "📊 Health check result:\nSize: {size}\n🌱 Seeders: {sd} | 📥 Leechers: {lc}\n{verdict}\n\nProceed?",
+    },
+    'torrent_btn_download': {
+        'fa': "✅ دانلود کن",
+        'en': "✅ Download",
+    },
+    'torrent_btn_cancel': {
+        'fa': "❌ انصراف",
+        'en': "❌ Cancel",
+    },
+    'torrent_cancel_cb': {
+        'fa': "🚫 لغو شد.",
+        'en': "🚫 Cancelled.",
+    },
+    'torrent_timeout': {
+        'fa': "⏰ تورنت به دلیل عدم پیشرفت در ۲۰ دقیقه لغو شد.",
+        'en': "⏰ Torrent cancelled due to no progress in 20 minutes.",
+    },
+    'torrent_file_not_found': {
+        'fa': "هیچ فایلی پیدا نشد.",
+        'en': "No file found.",
+    },
+    'torrent_preparing_upload': {
+        'fa': "☁️ آماده‌سازی برای آپلود...",
+        'en': "☁️ Preparing for upload...",
+    },
+    'torrent_downloading': {
+        'fa': "در حال دانلود تورنت...",
+        'en': "Downloading torrent...",
+    },
+    'torrent_no_progress_warn': {
+        'fa': "\n⚠️ بدون پیشرفت: {m}m{s}s / 20m",
+        'en': "\n⚠️ No progress: {m}m{s}s / 20m",
+    },
+    'direct_preparing': {
+        'fa': "🔗 آماده‌سازی لینک...",
+        'en': "🔗 Preparing link...",
+    },
+    'direct_upload_preparing': {
+        'fa': "☁️ آماده‌سازی برای آپلود...",
+        'en': "☁️ Preparing for upload...",
+    },
+    'social_preparing': {
+        'fa': "🔗 دریافت از {domain}...",
+        'en': "🔗 Fetching from {domain}...",
+    },
+    'social_upload_preparing': {
+        'fa': "☁️ آماده‌سازی برای آپلود...",
+        'en': "☁️ Preparing for upload...",
+    },
+    'social_cancelled': {
+        'fa': "لغو",
+        'en': "Cancelled",
+    },
+    'file_not_found_err': {
+        'fa': "فایل پیدا نشد",
+        'en': "File not found",
+    },
+
+    # ── Upload status messages ─────────────────────────────────
+    'upload_cancelled': {
+        'fa': "🚫 آپلود لغو شد.",
+        'en': "🚫 Upload cancelled.",
+    },
+    'getting_gdrive_link': {
+        'fa': "⌛ در حال دریافت لینک دانلود از گوگل درایو...",
+        'en': "⌛ Getting download link from Google Drive...",
+    },
+    'gdrive_upload_done': {
+        'fa': "✅ آپلود به گوگل درایو تموم شد!\n📄 {title}\n📦 {size} • {source} {quality}\n📂 {folder}\n",
+        'en': "✅ Upload to Google Drive complete!\n📄 {title}\n📦 {size} • {source} {quality}\n📂 {folder}\n",
+    },
+    'gdrive_direct_link': {
+        'fa': "⬇️ <a href='{link}'>دانلود مستقیم</a>",
+        'en': "⬇️ <a href='{link}'>Direct Download</a>",
+    },
+    'gdrive_view_link': {
+        'fa': "☁️ <a href='{link}'>مشاهده در درایو</a>",
+        'en': "☁️ <a href='{link}'>View in Drive</a>",
+    },
+    'gdrive_link_error': {
+        'fa': "⚠️ (خطا در دریافت لینک)",
+        'en': "⚠️ (Error retrieving link)",
+    },
+    'gdrive_upload_fallback': {
+        'fa': "✅ آپلود شد: {name}\n⚠️ خطا در لینک: {e}",
+        'en': "✅ Uploaded: {name}\n⚠️ Link error: {e}",
+    },
+    'gdrive_upload_error': {
+        'fa': "❌ خطا در آپلود به گوگل درایو.",
+        'en': "❌ Error uploading to Google Drive.",
+    },
+    'tg_upload_large': {
+        'fa': "⚠️ حجم {size}MB — بیش از 2GB.\nآپلود به گوگل درایو...",
+        'en': "⚠️ Size {size}MB — over 2GB.\nUploading to Google Drive...",
+    },
+    'tg_uploading': {
+        'fa': "⬆️ در حال ارسال به تلگرام...\n(به دلیل محدودیت تلگرام، درصد آپلود قابل نمایش نیست)",
+        'en': "⬆️ Sending to Telegram...\n(Upload percentage cannot be displayed due to Telegram limitations)",
+    },
+    'tg_upload_done': {
+        'fa': "✅ دانلود و آپلود تموم شد!\n📁 {title}\n📦 {size} • 🌐 {source} {quality}\n📱 آپلود شده در تلگرام",
+        'en': "✅ Download and upload complete!\n📁 {title}\n📦 {size} • 🌐 {source} {quality}\n📱 Uploaded to Telegram",
+    },
+    'tg_folder_files': {
+        'fa': "📂 {count} فایل یافت شد.",
+        'en': "📂 {count} file(s) found.",
+    },
+    'smart_dest_large': {
+        'fa': "⚠️ حجم {size} بیش از 2GB است.\n☁️ انتقال خودکار به گوگل درایو...",
+        'en': "⚠️ Size {size} exceeds 2GB.\n☁️ Automatically transferring to Google Drive...",
+    },
+
+    # ── Retry / error (downloader_queue) ──────────────────────
+    'retry_error': {
+        'fa': "⚠️ خطا در دانلود (تلاش {attempt}/{max}):\n{error}\n\n⏳ {delay} ثانیه دیگر دوباره امتحان میکنم...",
+        'en': "⚠️ Download error (attempt {attempt}/{max}):\n{error}\n\n⏳ Retrying in {delay} seconds...",
+    },
+    'max_retries_error': {
+        'fa': "❌ بعد از {max} بار تلاش موفق نشدم:\n{error}",
+        'en': "❌ Failed after {max} attempts:\n{error}",
+    },
+    'generic_error': {
+        'fa': "❌ خطا:\n{error}",
+        'en': "❌ Error:\n{error}",
+    },
+
+    # ── Friendly errors ────────────────────────────────────────
+    'err_login': {
+        'fa': "🔒 محتوا نیاز به لاگین دارد.\n➡️ از منوی 🍪 مدیریت کوکی، کوکی سایت را اضافه کنید.",
+        'en': "🔒 Content requires login.\n➡️ Add the site cookie via the 🍪 Cookie Manager.",
+    },
+    'err_404': {
+        'fa': "🔗 لینک پیدا نشد (404).\n➡️ لینک را بررسی کنید — ممکن است حذف شده یا private باشد.\n💡 اگه لینک share از اپ بود، لینک مستقیم مرورگر را امتحان کنید.",
+        'en': "🔗 Link not found (404).\n➡️ Check the link — it may have been deleted or is private.\n💡 If the link was shared from an app, try the browser's direct link.",
+    },
+    'err_no_video': {
+        'fa': "🎬 ویدیویی در این لینک پیدا نشد.\n➡️ مطمئن شوید لینک مستقیم ویدیو است.",
+        'en': "🎬 No video found at this link.\n➡️ Make sure it is a direct video link.",
+    },
+    'err_network': {
+        'fa': "🌐 خطای شبکه — اتصال برقرار نشد.\n➡️ چند ثانیه دیگر دوباره امتحان میکنم.",
+        'en': "🌐 Network error — connection failed.\n➡️ I will retry in a few seconds.",
+    },
+    'err_disk': {
+        'fa': "💾 فضای دیسک کافی نیست! آزاد: {free}\n➡️ لطفاً با ادمین تماس بگیرید.",
+        'en': "💾 Not enough disk space! Free: {free}\n➡️ Please contact the admin.",
+    },
+    'err_unsupported': {
+        'fa': "🚫 این سایت پشتیبانی نمیشود.\n➡️ از گزینه 🌐 لینک مستقیم استفاده کنید.",
+        'en': "🚫 This site is not supported.\n➡️ Use the 🌐 Direct Link option.",
+    },
+    'err_copyright': {
+        'fa': "⛔ این محتوا به دلیل کپی‌رایت قابل دانلود نیست.",
+        'en': "⛔ This content cannot be downloaded due to copyright.",
+    },
+    'err_format': {
+        'fa': "📹 کیفیت انتخابی موجود نیست.\n➡️ کیفیت پایین‌تری انتخاب کنید.",
+        'en': "📹 Selected quality is not available.\n➡️ Choose a lower quality.",
+    },
+    'err_torrent': {
+        'fa': "🧲 خطا در دانلود تورنت.\n➡️ لینک مگنت را بررسی کنید یا تورنت دیگری امتحان کنید.",
+        'en': "🧲 Torrent download error.\n➡️ Check the magnet link or try a different torrent.",
+    },
+    'err_rclone': {
+        'fa': "☁️ خطا در آپلود به گوگل درایو.\n➡️ تنظیمات rclone را بررسی کنید.",
+        'en': "☁️ Error uploading to Google Drive.\n➡️ Check rclone configuration.",
+    },
+    'err_technical': {
+        'fa': "⚙️ خطای فنی:\n{err}",
+        'en': "⚙️ Technical error:\n{err}",
+    },
+
+    # ── ETA label in progress card ─────────────────────────────
+    'eta_seconds': {
+        'fa': "~{eta} ثانیه",
+        'en': "~{eta}s",
+    },
+    'eta_unknown': {
+        'fa': "نامشخص",
+        'en': "Unknown",
+    },
+    'progress_title_unknown': {
+        'fa': "نامشخص",
+        'en': "Unknown",
+    },
+
+    # ── downloader_queue internal ──────────────────────────────
+    'cancelled_keyword': {
+        'fa': "لغو",
+        'en': "Cancelled",
+    },
+    'unknown_task_type': {
+        'fa': "نوع task ناشناخته: {t}",
+        'en': "Unknown task type: {t}",
+    },
+}
+
+
+def t(cid, key: str, **kwargs) -> str:
+    """
+    Return the localized string for `key` in the user's language.
+    Falls back to 'fa' if the key or language is not found.
+    Extra kwargs are used for .format() substitutions.
+    """
+    lang = get_lang(cid)
+    entry = STRINGS.get(key, {})
+    text = entry.get(lang) or entry.get('fa') or key
+    if kwargs:
+        try:
+            text = text.format(**kwargs)
+        except (KeyError, IndexError):
+            pass
+    return text

@@ -1,0 +1,16 @@
+# کش‌های پایتون
+__pycache__/
+*.py[cod]
+*$py.class
+
+# پوشه‌های دانلود و کوکی‌ها
+downloads/
+cookies/
+
+# دیتابیس‌ها و فایل‌های جیسون ذخیره وضعیت کاربرها
+*.json
+cookies_enabled.json
+user_langs.json
+
+# متغیرهای محیطی و پسوردها
+.env
