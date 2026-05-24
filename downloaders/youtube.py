@@ -77,21 +77,46 @@ def _build_ydl_opts(task: dict, folder: str, hook) -> dict:
             pp['preferredquality'] = audio_quality
         postprocessors.append(pp)
 
-    # ── Task 5: Chapter embedding ──────────────────────────────
-    if embed_chapters and not audio_only:
-        postprocessors.append({'key': 'FFmpegMetadata', 'add_chapters': True})
+    # ── Task 5: Chapter / metadata embedding ──────────────────────────────
+    # NOTE: FFmpegMetadata MUST be appended AFTER subtitle PPs so it runs
+    # last and picks up the fully-muxed file (including embedded sub tracks).
+    # It is intentionally moved to *after* the subtitle block below.
 
     # ── Task 4: Subtitle embedding ─────────────────────────────
+    #
+    # Root-cause fix: YouTube only serves subtitles as .vtt (WebVTT).
+    # Embedding raw .vtt into .mp4 produces garbage "ISO Media" data tracks
+    # because FFmpeg cannot recognise the codec. The correct pipeline is:
+    #
+    #   FFmpegSubtitlesConvertor (vtt → srt)
+    #       → FFmpegEmbedSubtitle  (srt → mov_text inside .mp4 / ass inside .mkv)
+    #
+    # `subtitlesformat` is intentionally left unset so yt-dlp downloads
+    # whatever the source offers (vtt/json3); the Convertor PP then
+    # normalises everything to SRT before the embed step.
     subtitle_opts = {}
     if subtitle_lang != 'off' and not audio_only:
         subtitle_opts = {
-            'writesubtitles':   True,
-            'subtitleslangs':   [subtitle_lang],
-            'subtitlesformat':  'srt/vtt',
-            # ignoreerrors for subtitle: if sub not found, yt-dlp won't crash
-            'ignoreerrors':     True,
+            'writesubtitles':      True,
+            'writeautomaticsub':   True,   # fall back to auto-generated subs
+            'subtitleslangs':      [subtitle_lang, f'{subtitle_lang}-*'],
+            # DO NOT set subtitlesformat here – let yt-dlp grab whatever
+            # the source offers, then the Convertor PP handles normalisation.
+            'ignoreerrors':        True,
         }
+        # 1. Convert downloaded subtitle (vtt/json3/…) → srt
+        postprocessors.append({
+            'key':  'FFmpegSubtitlesConvertor',
+            'format': 'srt',
+        })
+        # 2. Embed the normalised srt into the container
+        #    FFmpeg will automatically re-encode srt → mov_text for .mp4
+        #    and srt → ass/subrip for .mkv — both display correctly.
         postprocessors.append({'key': 'FFmpegEmbedSubtitle', 'already_have_subtitle': False})
+
+    # ── Task 5 (continued): Append Metadata PP last ───────────────────────
+    if embed_chapters and not audio_only:
+        postprocessors.append({'key': 'FFmpegMetadata', 'add_chapters': True})
 
     # ── Task 1: Video container format ────────────────────────
     merge_fmt = video_fmt if video_fmt != 'default' else 'mp4'
