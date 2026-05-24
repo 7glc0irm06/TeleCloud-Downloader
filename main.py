@@ -5,12 +5,6 @@ from downloader_queue import start_worker
 import handlers
 import callbacks
 
-def listener(messages):
-    for m in messages:
-        print(f"DEBUG UPDATE: {m}", flush=True)
-
-bot.set_update_listener(listener)
-
 def main():
     start_worker()
     bot.remove_webhook()
