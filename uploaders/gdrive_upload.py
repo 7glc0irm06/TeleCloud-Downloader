@@ -174,6 +174,15 @@ def upload_to_gdrive_cancellable(
         return
     # ───────────────────────────────────────────────────────────────────────
 
+    # ── FIX: only pass --drive-root-folder-id for admin (system config) ────
+    # For regular users, root_folder_id is already set inside their personal
+    # rclone config, so overriding it here would point them to the admin's
+    # Drive folder which they have no access to → upload error.
+    from config import ADMIN_ID
+    is_admin = str(uid) == str(ADMIN_ID)
+    root_folder_args = ["--drive-root-folder-id", DRIVE_FOLDER_ID] if is_admin else []
+    # ───────────────────────────────────────────────────────────────────────
+
     try:
         card = build_rich_progress_card(
             "☁️", title, 0, 0, total_size, 0, 0, source, quality, cid=cid)
@@ -185,9 +194,8 @@ def upload_to_gdrive_cancellable(
 
     cmd = [
         "rclone", "move", path, drive_dest,
-        "--drive-root-folder-id", DRIVE_FOLDER_ID,
         "--progress",
-    ] + config_args
+    ] + root_folder_args + config_args
 
     config.rclone_process = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -259,8 +267,7 @@ def upload_to_gdrive_cancellable(
             direct_link = None
             raw_link    = None
             lj = subprocess.run(
-                ["rclone", "lsjson", remote_file_path,
-                 "--drive-root-folder-id", DRIVE_FOLDER_ID] + config_args,
+                ["rclone", "lsjson", remote_file_path] + root_folder_args + config_args,
                 capture_output=True, text=True, timeout=30)
             if lj.returncode == 0 and lj.stdout.strip():
                 import json as _json
@@ -274,8 +281,7 @@ def upload_to_gdrive_cancellable(
             # Fallback: rclone link
             if not direct_link:
                 lr = subprocess.run(
-                    ["rclone", "link", remote_file_path,
-                     "--drive-root-folder-id", DRIVE_FOLDER_ID] + config_args,
+                    ["rclone", "link", remote_file_path] + root_folder_args + config_args,
                     capture_output=True, text=True, timeout=60)
                 raw_link    = lr.stdout.strip() if lr.returncode == 0 else None
                 direct_link = _to_direct_download_link(raw_link) if raw_link else None
