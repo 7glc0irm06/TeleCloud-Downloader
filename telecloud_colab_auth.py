@@ -93,41 +93,50 @@ def _get_credentials_via_flow() -> Credentials:
     return creds
 
 
-def _get_or_create_folder(service, folder_name: str = "TeleCloud-Downloads") -> str:
+def _get_credentials_via_flow() -> Credentials:
     """
-    Return the Drive folder_id of `folder_name` in the root of My Drive.
-    Creates the folder if it does not exist.
+    Run an OAuth2 flow manually using localhost redirect workaround.
     """
-    query = (
-        f"name = '{folder_name}' "
-        "and mimeType = 'application/vnd.google-apps.folder' "
-        "and 'root' in parents "
-        "and trashed = false"
-    )
-    results = service.files().list(
-        q=query,
-        spaces="drive",
-        fields="files(id, name)",
-        pageSize=5,
-    ).execute()
-
-    items = results.get("files", [])
-    if items:
-        folder_id = items[0]["id"]
-        print(f"✅ Found existing folder '{folder_name}' → ID: {folder_id}")
-    else:
-        file_metadata = {
-            "name":     folder_name,
-            "mimeType": "application/vnd.google-apps.folder",
+    client_config = {
+        "installed": {
+            "client_id":                  RCLONE_CLIENT_ID,
+            "client_secret":              RCLONE_CLIENT_SECRET,
+            "auth_uri":                   "https://accounts.google.com/o/oauth2/auth",
+            "token_uri":                  RCLONE_TOKEN_URL,
+            "redirect_uris":              ["http://localhost"],
+            "auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs",
         }
-        folder = service.files().create(
-            body=file_metadata, fields="id"
-        ).execute()
-        folder_id = folder["id"]
-        print(f"📁 Created new folder '{folder_name}' → ID: {folder_id}")
+    }
 
-    return folder_id
+    flow = InstalledAppFlow.from_client_config(client_config, scopes=SCOPES)
+    flow.redirect_uri = "http://localhost"
 
+    auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
+
+    print("\n" + "🌐 " + "-"*60)
+    print("۱. لطفاً روی لینک زیر کلیک کنید و اکانت گوگل خود را انتخاب کنید:")
+    print(auth_url)
+    print("-" * 62 + "\n")
+    print("⚠️ نکته بسیار مهم: بعد از دادن دسترسی، مرورگر شما به یک صفحه خطا (مثلاً Site cannot be reached یا Localhost) می‌رود.")
+    print("این کاملاً طبیعی است! در آن صفحه هیچ کاری نکنید، فقط کل آدرس (URL) آن صفحه را از بالای مرورگر کپی کنید.\n")
+
+    response_url = input("🔗 لطفاً کل آدرس (URL) آن صفحه خطا را اینجا پیست کنید و Enter بزنید: ").strip()
+
+    # استخراج هوشمندانه کد از آدرس URL
+    from urllib.parse import urlparse, parse_qs
+    parsed_url = urlparse(response_url)
+    code_list = parse_qs(parsed_url.query).get('code')
+
+    if code_list:
+        code = code_list[0]
+    elif response_url.startswith("4/"):
+        # در صورتی که کاربر فقط خود کد را وارد کرده باشد
+        code = response_url
+    else:
+        raise ValueError("❌ کد تایید در لینکی که دادید پیدا نشد! مطمئن شوید کل آدرس مرورگر را کپی کرده‌اید.")
+
+    flow.fetch_token(code=code)
+    return flow.credentials
 
 def _build_rclone_conf(creds: Credentials, root_folder_id: str) -> str:
     """
