@@ -19,30 +19,40 @@ def _user_config_path(user_id: int) -> Path:
     return Path(USER_CONFIGS_DIR) / f"rclone_{user_id}.conf"
 
 
-def get_rclone_config_args(user_id: int | None) -> list[str]:
+def get_rclone_config_args(user_id) -> list[str]:
     """
-    Return the rclone --config flag list appropriate for `user_id`.
+    Return the rclone --config flag list appropriate for ``user_id``.
 
-    Priority:
-      1. /app/user_configs/rclone_<user_id>.conf   (user connected their Drive)
-      2. /root/.config/rclone/rclone.conf           (system-wide / admin config)
+    Security rules (evaluated in order):
+      1. If ``/app/user_configs/rclone_<user_id>.conf`` exists → use it.
+      2. If it does NOT exist AND user_id is the admin → use the system-wide
+         default config (``/root/.config/rclone/rclone.conf``).
+      3. If it does NOT exist AND user_id is NOT the admin → raise
+         RuntimeError with a Persian error message so the upload is blocked
+         and the user is instructed to connect their Drive first.
 
-    Raises RuntimeError if neither config file exists.
+    Both ``user_id`` and ``ADMIN_ID`` are compared as strings to prevent
+    silent type-mismatch bugs (e.g. int vs str).
     """
+    from config import ADMIN_ID  # late import to avoid circular dependency
+
+    # ── Step 1: personal config ───────────────────────────────────────────
     if user_id is not None:
         user_conf = _user_config_path(user_id)
         if user_conf.exists():
             return ["--config", str(user_conf)]
 
-    default_conf = Path(DEFAULT_RCLONE_CONF)
-    if default_conf.exists():
-        return ["--config", str(default_conf)]
+    # ── Steps 2 & 3: no personal config found ────────────────────────────
+    if str(user_id) == str(ADMIN_ID):
+        # Admin is allowed to fall back to the system-wide default config
+        return ["--config", DEFAULT_RCLONE_CONF]
 
+    # Any other user: hard block — do NOT fall back to the admin's Drive
     raise RuntimeError(
-        "No rclone config found. "
-        "Please connect your Google Drive first by running the Colab script "
-        "and sending the generated rclone.conf to the bot."
+        "❌ شما هنوز گوگل درایو خود را متصل نکردهاید. "
+        "لطفاً از بخش تنظیمات (☁️ اتصال گوگل درایو) اقدام کنید."
     )
+
 
 # ──────────────────────────────────────────────────────────────
 # Source → Google Drive folder name mapping
