@@ -123,14 +123,24 @@ def callback_query(call):
             bot.delete_message(cid, call.message.message_id)
         except Exception:
             pass
-        # After language is set, continue the /start flow
-        from config import authorized_users
-        if cid not in authorized_users:
-            user_state[cid] = 'await_password'
-            bot.send_message(cid, t(cid, 'ask_password'))
-        else:
+        # After language is set, continue the /start flow via DB check
+        if cid == ADMIN_ID or db.is_approved(cid):
             user_state[cid] = None
             bot.send_message(cid, t(cid, 'bot_ready'), reply_markup=main_menu_markup(cid))
+        else:
+            # Show join-request button for unapproved users
+            from config import REGISTRATION_OPEN
+            if REGISTRATION_OPEN:
+                db.approve_user(cid)
+                user_state[cid] = None
+                bot.send_message(cid, t(cid, 'bot_ready'), reply_markup=main_menu_markup(cid))
+            else:
+                mk = types.InlineKeyboardMarkup()
+                mk.add(types.InlineKeyboardButton(
+                    t(cid, 'btn_request_access'),
+                    callback_data="joinreq|request",
+                ))
+                bot.send_message(cid, t(cid, 'registration_closed'), reply_markup=mk)
         return
 
     if data.startswith("set|"):
@@ -210,6 +220,13 @@ def callback_query(call):
             # Open the Drive setup / status panel as a new message
             bot.answer_callback_query(call.id)
             _handle_gdrive_settings(call, cid)
+            return
+
+        elif action == "profile":
+            # Show the user's daily quota stats (helper lives in handlers.py)
+            bot.answer_callback_query(call.id)
+            from handlers import _send_profile_stats
+            _send_profile_stats(cid)
             return
 
         else:
@@ -866,11 +883,10 @@ def _handle_gdrive_settings(call, cid: int) -> None:
             reply_markup=mk,
         )
     else:
-        # ── Not connected yet: show setup instructions ────────────────────
+        # ── Not connected: send exact corrected Colab instructions ────────
         bot.send_message(
             cid,
-            t(cid, 'gdrive_connect_msg', colab_url=COLAB_URL),
-            parse_mode='HTML',
+            t(cid, 'gdrive_colab_instructions', colab_url=COLAB_URL),
             disable_web_page_preview=True,
         )
 
@@ -941,3 +957,6 @@ def _handle_gdrive_callback(call, cid: int, data: str) -> None:
             bot.delete_message(cid, call.message.message_id)
         except Exception:
             pass
+
+# (Profile stats helper lives in handlers.py to avoid circular imports;
+#  callbacks.py imports it lazily inside the set|profile branch above.)

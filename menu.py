@@ -23,10 +23,12 @@ def main_menu_markup(cid=None):
         types.KeyboardButton(t(cid, 'btn_settings')    if cid else "تنظیمات ⚙️"),
         types.KeyboardButton(t(cid, 'btn_cancel')      if cid else "❌ لغو عملیات فعلی"),
         types.KeyboardButton(t(cid, 'btn_queue')       if cid else "📊 وضعیت صف"),
+        types.KeyboardButton(t(cid, 'btn_profile')     if cid else "👤 پروفایل من"),
         types.KeyboardButton(t(cid, 'btn_change_lang') if cid else "تغییر زبان 🌐"),
         types.KeyboardButton(t(cid, 'btn_help')        if cid else "ℹ️ راهنما"),
     )
     return markup
+
 
 
 # =============================================================

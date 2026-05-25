@@ -1270,6 +1270,8 @@ STRINGS = {
 }
 
 
+
+
 def t(cid, key: str, **kwargs) -> str:
     """
     Return the localized string for `key` in the user's language.
