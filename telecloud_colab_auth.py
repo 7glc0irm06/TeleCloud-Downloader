@@ -1,9 +1,9 @@
 """
 TeleCloud-Downloader — Google Drive Auth Script
 ================================================
-Run this notebook cell-by-cell in Google Colab to:
+Run this script inside Google Colab (or locally) to:
   1. Authenticate with your Google account
-  2. Create the "TeleCloud-Downloads" folder if it doesn't exist
+  2. Create the "TeleCloud-Downloads" folder in your Drive (if it doesn't exist)
   3. Generate a ready-to-use rclone.conf locked to that folder
   4. Download the config file automatically to your device
 
@@ -29,8 +29,8 @@ Token expiry note:
 import json
 import os
 from pathlib import Path
+from urllib.parse import urlparse, parse_qs
 
-from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
@@ -50,98 +50,133 @@ SCOPES = [
 
 # ── rclone OAuth2 client credentials (the public "rclone" app) ──
 # These are the official rclone client credentials that Google has approved
-# for the out-of-band (OOB) flow; they're embedded in every rclone binary.
+# for the installed-app flow; they are embedded in every rclone binary.
 RCLONE_CLIENT_ID     = "202264815644.apps.googleusercontent.com"
 RCLONE_CLIENT_SECRET = "X4Z3ca8xfWDb1Voo-F9a7ZxJ"
 
 # Token endpoint used by rclone
 RCLONE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 
+# Name of the Drive folder that will receive all bot uploads
+DRIVE_FOLDER_NAME = "TeleCloud-Downloads"
 
-def _get_credentials_via_colab() -> Credentials:
-    """Use Colab's built-in auth popup (recommended path)."""
-    colab_auth.authenticate_user()
-    # After authenticate_user(), the runtime has valid application-default
-    # credentials; however those use Colab's own client ID, not rclone's.
-    # We therefore do a separate InstalledAppFlow to obtain rclone-compatible
-    # tokens that include a proper refresh_token.
-    return _get_credentials_via_flow()
 
+# =============================================================
+# Auth helpers
+# =============================================================
 
 def _get_credentials_via_flow() -> Credentials:
     """
-    Run an OAuth2 InstalledAppFlow using rclone's public client credentials.
-    Colab intercepts the redirect and shows an authorisation code in the cell
-    output — the user pastes it back.
+    Run an OAuth2 InstalledAppFlow using rclone's public client credentials
+    with a localhost redirect.
+
+    The user:
+      1. Clicks the printed URL
+      2. Authorises the app in their browser
+      3. Gets redirected to localhost (which fails — that is expected)
+      4. Copies the full redirect URL and pastes it back here
     """
     client_config = {
         "installed": {
-            "client_id":                  RCLONE_CLIENT_ID,
-            "client_secret":              RCLONE_CLIENT_SECRET,
-            "auth_uri":                   "https://accounts.google.com/o/oauth2/auth",
-            "token_uri":                  RCLONE_TOKEN_URL,
-            "redirect_uris":              ["urn:ietf:wg:oauth:2.0:oob", "http://localhost"],
-            "auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs",
-        }
-    }
-
-    flow = InstalledAppFlow.from_client_config(client_config, scopes=SCOPES)
-
-    # Colab cannot open a local browser, so we use the console flow which
-    # prints a URL and waits for the user to paste the auth code.
-    creds = flow.run_console()
-    return creds
-
-
-def _get_credentials_via_flow() -> Credentials:
-    """
-    Run an OAuth2 flow manually using localhost redirect workaround.
-    """
-    client_config = {
-        "installed": {
-            "client_id":                  RCLONE_CLIENT_ID,
-            "client_secret":              RCLONE_CLIENT_SECRET,
-            "auth_uri":                   "https://accounts.google.com/o/oauth2/auth",
-            "token_uri":                  RCLONE_TOKEN_URL,
-            "redirect_uris":              ["http://localhost"],
-            "auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs",
+            "client_id":                   RCLONE_CLIENT_ID,
+            "client_secret":               RCLONE_CLIENT_SECRET,
+            "auth_uri":                    "https://accounts.google.com/o/oauth2/auth",
+            "token_uri":                   RCLONE_TOKEN_URL,
+            "redirect_uris":               ["http://localhost"],
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
         }
     }
 
     flow = InstalledAppFlow.from_client_config(client_config, scopes=SCOPES)
     flow.redirect_uri = "http://localhost"
 
-    auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
+    auth_url, _ = flow.authorization_url(prompt="consent", access_type="offline")
 
-    print("\n" + "🌐 " + "-"*60)
+    print("\n" + "🌐 " + "-" * 60)
     print("۱. لطفاً روی لینک زیر کلیک کنید و اکانت گوگل خود را انتخاب کنید:")
-    print(auth_url)
-    print("-" * 62 + "\n")
-    print("⚠️ نکته بسیار مهم: بعد از دادن دسترسی، مرورگر شما به یک صفحه خطا (مثلاً Site cannot be reached یا Localhost) می‌رود.")
-    print("این کاملاً طبیعی است! در آن صفحه هیچ کاری نکنید، فقط کل آدرس (URL) آن صفحه را از بالای مرورگر کپی کنید.\n")
+    print(f"\n   {auth_url}\n")
+    print("-" * 62)
+    print("⚠️  نکته مهم: بعد از دادن دسترسی، مرورگر شما به یک صفحه خطا")
+    print("   (مثلاً 'Site cannot be reached' یا 'Localhost') می‌رود.")
+    print("   این کاملاً طبیعی است! کل آدرس (URL) آن صفحه را از بالای")
+    print("   مرورگر کپی کنید و اینجا پیست کنید.\n")
 
-    response_url = input("🔗 لطفاً کل آدرس (URL) آن صفحه خطا را اینجا پیست کنید و Enter بزنید: ").strip()
+    response_url = input(
+        "🔗 کل آدرس (URL) صفحه خطا را اینجا پیست کنید و Enter بزنید: "
+    ).strip()
 
-    # استخراج هوشمندانه کد از آدرس URL
-    from urllib.parse import urlparse, parse_qs
-    parsed_url = urlparse(response_url)
-    code_list = parse_qs(parsed_url.query).get('code')
+    # Smart code extraction from the redirect URL
+    parsed = urlparse(response_url)
+    code_list = parse_qs(parsed.query).get("code")
 
     if code_list:
         code = code_list[0]
     elif response_url.startswith("4/"):
-        # در صورتی که کاربر فقط خود کد را وارد کرده باشد
+        # User pasted only the bare auth code, not the full URL
         code = response_url
     else:
-        raise ValueError("❌ کد تایید در لینکی که دادید پیدا نشد! مطمئن شوید کل آدرس مرورگر را کپی کرده‌اید.")
+        raise ValueError(
+            "❌ کد تایید در لینکی که دادید پیدا نشد!\n"
+            "مطمئن شوید که کل آدرس مرورگر (نه فقط بخشی از آن) را کپی کردید."
+        )
 
     flow.fetch_token(code=code)
     return flow.credentials
 
+
+# =============================================================
+# Google Drive folder helper  ← THE MISSING FUNCTION (now added)
+# =============================================================
+
+def _get_or_create_folder(service) -> str:
+    """
+    Look up the ``TeleCloud-Downloads`` folder in the authenticated user's
+    Google Drive.  If it does not exist, create it.
+
+    Returns the folder's ID string.
+    """
+    # Search for an existing folder with the exact name (not trashed)
+    query = (
+        f"mimeType='application/vnd.google-apps.folder' "
+        f"and name='{DRIVE_FOLDER_NAME}' "
+        f"and trashed=false"
+    )
+    response = (
+        service.files()
+        .list(q=query, spaces="drive", fields="files(id, name)", pageSize=1)
+        .execute()
+    )
+    items = response.get("files", [])
+
+    if items:
+        folder_id = items[0]["id"]
+        print(f"   ✅ پوشه موجود است (ID: {folder_id})")
+        return folder_id
+
+    # Folder not found — create it
+    print(f"   📁 پوشه '{DRIVE_FOLDER_NAME}' پیدا نشد. در حال ساخت…")
+    file_metadata = {
+        "name":     DRIVE_FOLDER_NAME,
+        "mimeType": "application/vnd.google-apps.folder",
+    }
+    folder = (
+        service.files()
+        .create(body=file_metadata, fields="id")
+        .execute()
+    )
+    folder_id = folder["id"]
+    print(f"   ✅ پوشه ساخته شد (ID: {folder_id})")
+    return folder_id
+
+
+# =============================================================
+# rclone.conf builder
+# =============================================================
+
 def _build_rclone_conf(creds: Credentials, root_folder_id: str) -> str:
     """
     Construct a valid rclone.conf string for a Google Drive remote
-    locked to `root_folder_id`.
+    locked to ``root_folder_id``.
 
     Token structure expected by rclone:
       {"access_token": "...", "token_type": "Bearer",
@@ -171,32 +206,33 @@ token = {token_json}
     return conf
 
 
+# =============================================================
+# Main
+# =============================================================
+
 def main():
-    print("=" * 60)
+    print("=" * 62)
     print("  TeleCloud-Downloader — Google Drive Setup")
-    print("=" * 60)
+    print("=" * 62)
     print()
 
-    # Step 1: Authenticate
+    # ── Step 1: Authenticate ──────────────────────────────────
     print("🔐 Step 1: Authenticating with Google…")
-    if IN_COLAB:
-        creds = _get_credentials_via_colab()
-    else:
-        creds = _get_credentials_via_flow()
-    print("   Authentication successful.\n")
+    creds = _get_credentials_via_flow()
+    print("   ✅ Authentication successful.\n")
 
-    # Step 2: Build Drive service & locate/create folder
-    print("🔍 Step 2: Checking Google Drive for 'TeleCloud-Downloads' folder…")
-    service = build("drive", "v3", credentials=creds)
+    # ── Step 2: Locate / create Drive folder ─────────────────
+    print(f"🔍 Step 2: Checking Google Drive for '{DRIVE_FOLDER_NAME}' folder…")
+    service   = build("drive", "v3", credentials=creds)
     folder_id = _get_or_create_folder(service)
     print()
 
-    # Step 3: Build rclone.conf
+    # ── Step 3: Build rclone.conf ─────────────────────────────
     print("📝 Step 3: Generating rclone.conf…")
     conf_text = _build_rclone_conf(creds, folder_id)
-    print("   Config generated.\n")
+    print("   ✅ Config generated.\n")
 
-    # Step 4: Save & trigger download
+    # ── Step 4: Save & trigger download ──────────────────────
     output_path = Path("/tmp/rclone.conf") if IN_COLAB else Path("rclone.conf")
     output_path.write_text(conf_text, encoding="utf-8")
     print(f"💾 Config written to: {output_path}")
@@ -205,16 +241,16 @@ def main():
         print("📥 Step 4: Triggering file download to your device…")
         colab_files.download(str(output_path))
         print()
-        print("✅ Done! Send the downloaded 'rclone.conf' to the Telegram bot.")
+        print("✅ تمام! فایل 'rclone.conf' را که دانلود شد به ربات تلگرام بفرستید.")
     else:
         print()
-        print("✅ Done! Send 'rclone.conf' (in the current directory) to the Telegram bot.")
+        print("✅ تمام! فایل 'rclone.conf' (در پوشه جاری) را به ربات تلگرام بفرستید.")
 
     print()
-    print("─" * 60)
-    print("  After connecting, all your downloads will appear in:")
-    print("  My Drive → TeleCloud-Downloads → <source platform>")
-    print("─" * 60)
+    print("─" * 62)
+    print("  After connecting, your downloads will appear in:")
+    print(f"  My Drive → {DRIVE_FOLDER_NAME} → <source platform>")
+    print("─" * 62)
 
 
 if __name__ == "__main__":
