@@ -3,9 +3,47 @@ import re
 import subprocess
 import time
 import html
+from pathlib import Path
 
 from config import bot, stop_event, DRIVE_FOLDER_ID
 from utils import build_rich_progress_card, cleanup_path, fmt_size
+
+# ──────────────────────────────────────────────────────────────
+# Per-user rclone config resolution
+# ──────────────────────────────────────────────────────────────
+USER_CONFIGS_DIR     = "/app/user_configs"
+DEFAULT_RCLONE_CONF = "/root/.config/rclone/rclone.conf"
+
+
+def _user_config_path(user_id: int) -> Path:
+    """Return the per-user rclone config path (may not exist)."""
+    return Path(USER_CONFIGS_DIR) / f"rclone_{user_id}.conf"
+
+
+def get_rclone_config_args(user_id: int | None) -> list[str]:
+    """
+    Return the rclone --config flag list appropriate for `user_id`.
+
+    Priority:
+      1. /app/user_configs/rclone_<user_id>.conf   (user connected their Drive)
+      2. /root/.config/rclone/rclone.conf           (system-wide / admin config)
+
+    Raises RuntimeError if neither config file exists.
+    """
+    if user_id is not None:
+        user_conf = _user_config_path(user_id)
+        if user_conf.exists():
+            return ["--config", str(user_conf)]
+
+    default_conf = Path(DEFAULT_RCLONE_CONF)
+    if default_conf.exists():
+        return ["--config", str(default_conf)]
+
+    raise RuntimeError(
+        "No rclone config found. "
+        "Please connect your Google Drive first by running the Colab script "
+        "and sending the generated rclone.conf to the bot."
+    )
 
 # ──────────────────────────────────────────────────────────────
 # Source → Google Drive folder name mapping
@@ -84,6 +122,7 @@ def upload_to_gdrive_cancellable(
     folder_name=None,
     is_folder=False,
     task_info=None,
+    user_id: int | None = None,
 ):
     from locales import t
     import config
@@ -93,6 +132,8 @@ def upload_to_gdrive_cancellable(
 
     chat_id = status_msg.chat.id
     cid     = chat_id
+    # Prefer explicit user_id; fall back to chat_id (1:1 chats only)
+    uid     = user_id if user_id is not None else chat_id
     source  = task_info.get('source', 'Other')
     quality = task_info.get('quality', '')
     title   = task_info.get('title', os.path.basename(path))
@@ -112,6 +153,18 @@ def upload_to_gdrive_cancellable(
             for d, _, fs in os.walk(path) for f in fs
         )
 
+    # ── Resolve rclone config (raises RuntimeError if none found) ──────────
+    try:
+        config_args = get_rclone_config_args(uid)
+    except RuntimeError as cfg_err:
+        try:
+            bot.edit_message_text(f"❌ {cfg_err}", chat_id, status_msg.message_id)
+        except Exception:
+            bot.send_message(chat_id, f"❌ {cfg_err}")
+        cleanup_path(path)
+        return
+    # ───────────────────────────────────────────────────────────────────────
+
     try:
         card = build_rich_progress_card(
             "☁️", title, 0, 0, total_size, 0, 0, source, quality, cid=cid)
@@ -125,7 +178,7 @@ def upload_to_gdrive_cancellable(
         "rclone", "move", path, drive_dest,
         "--drive-root-folder-id", DRIVE_FOLDER_ID,
         "--progress",
-    ]
+    ] + config_args
 
     config.rclone_process = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -198,7 +251,7 @@ def upload_to_gdrive_cancellable(
             raw_link    = None
             lj = subprocess.run(
                 ["rclone", "lsjson", remote_file_path,
-                 "--drive-root-folder-id", DRIVE_FOLDER_ID],
+                 "--drive-root-folder-id", DRIVE_FOLDER_ID] + config_args,
                 capture_output=True, text=True, timeout=30)
             if lj.returncode == 0 and lj.stdout.strip():
                 import json as _json
@@ -213,7 +266,7 @@ def upload_to_gdrive_cancellable(
             if not direct_link:
                 lr = subprocess.run(
                     ["rclone", "link", remote_file_path,
-                     "--drive-root-folder-id", DRIVE_FOLDER_ID],
+                     "--drive-root-folder-id", DRIVE_FOLDER_ID] + config_args,
                     capture_output=True, text=True, timeout=60)
                 raw_link    = lr.stdout.strip() if lr.returncode == 0 else None
                 direct_link = _to_direct_download_link(raw_link) if raw_link else None
@@ -262,6 +315,7 @@ def upload_file_to_gdrive_folder(
     status_msg,
     folder_name="Telegram",
     task_info=None,
+    user_id: int | None = None,
 ):
     if task_info is None:
         task_info = {}
@@ -270,4 +324,6 @@ def upload_file_to_gdrive_folder(
     upload_to_gdrive_cancellable(
         file_path, status_msg,
         folder_name=folder_name,
-        task_info=task_info)
+        task_info=task_info,
+        user_id=user_id,
+    )

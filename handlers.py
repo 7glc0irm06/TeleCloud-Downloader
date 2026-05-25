@@ -1,4 +1,6 @@
 import os
+import html
+from pathlib import Path
 from downloader_queue import enqueue
 import re
 import threading
@@ -9,6 +11,10 @@ from urllib.parse import urlparse
 import config
 from config import (bot, cache_lock, url_cache,
                     user_state, authorized_users, BOT_PASSWORD)
+
+# Directory where per-user rclone configs are persisted inside the container
+USER_CONFIGS_DIR = "/app/user_configs"
+os.makedirs(USER_CONFIGS_DIR, exist_ok=True)
 from cookies import (active_cookies_file, save_cookie_data,
                      cookie_exists, is_cookie_enabled,
                      get_cookie_path, _cookies_state, _save_cookies_state)
@@ -75,6 +81,15 @@ def handle_incoming_files(message):
         bot.reply_to(message, t(cid, 'ask_password_file'))
         return
 
+    # ── rclone.conf upload — multi-tenant Google Drive setup ──────────────
+    if (
+        message.content_type == 'document'
+        and message.document.file_name == 'rclone.conf'
+    ):
+        _handle_rclone_conf_upload(message, cid)
+        return
+    # ─────────────────────────────────────────────────────────────────────
+
     if message.content_type == 'document' and message.document.file_name.endswith('.txt'):
         fname = message.document.file_name
         if state == 'await_cookie_file' or 'cookie' in fname.lower():
@@ -132,7 +147,10 @@ def handle_incoming_files(message):
             fp   = os.path.join(DOWNLOAD_DIR, fname)
             with open(fp, 'wb') as f:
                 f.write(data)
-        upload_file_to_gdrive_folder(fp, status_msg, "FilesFromTel")
+        upload_file_to_gdrive_folder(
+            fp, status_msg, "FilesFromTel",
+            user_id=message.from_user.id,
+        )
 
     except Exception as e:
         text = f"❌ {friendly_error(str(e), cid=cid)}"
@@ -140,6 +158,72 @@ def handle_incoming_files(message):
             bot.edit_message_text(text, cid, status_msg.message_id)
         except Exception:
             bot.send_message(cid, text)
+
+
+# =============================================================
+# rclone.conf handler — multi-tenant Google Drive onboarding
+# =============================================================
+def _handle_rclone_conf_upload(message, cid: int) -> None:
+    """
+    Persist a user-supplied rclone.conf to:
+        /app/user_configs/rclone_<user_id>.conf
+
+    The file is validated to contain the bare minimum rclone remote
+    declaration before it is saved, so garbage files are rejected early.
+    A Persian success message is sent on success; a descriptive error
+    message is sent on any failure.
+    """
+    status_msg = bot.reply_to(message, "⏳ در حال پردازش فایل rclone.conf…")
+
+    try:
+        # Download the file from Telegram / local bot-api server
+        file_info = bot.get_file(message.document.file_id)
+        file_path = file_info.file_path
+
+        if file_path.startswith('/'):
+            # Local Bot-API server — file already on shared volume
+            import shutil
+            raw_data = Path(file_path).read_bytes()
+        else:
+            # Cloud Telegram servers
+            raw_data = bot.download_file(file_path)
+
+        conf_text = raw_data.decode('utf-8', errors='replace')
+
+        # ── Basic sanity check ────────────────────────────────────────────
+        if '[gdrive]' not in conf_text or 'type = drive' not in conf_text:
+            bot.edit_message_text(
+                "❌ فایل ارسالی معتبر نیست.\n"
+                "لطفاً فایل <code>rclone.conf</code> را که از اسکریپت Colab دریافت کردید ارسال کنید.",
+                cid,
+                status_msg.message_id,
+                parse_mode='HTML',
+            )
+            return
+
+        # ── Persist ───────────────────────────────────────────────────────
+        dest = os.path.join(USER_CONFIGS_DIR, f"rclone_{cid}.conf")
+        with open(dest, 'w', encoding='utf-8') as f:
+            f.write(conf_text)
+
+        bot.edit_message_text(
+            "✅ درایو شما با موفقیت متصل شد!\n"
+            "فایل‌های شما از این به بعد در پوشه <b>TeleCloud-Downloads</b> ذخیره می‌شوند.",
+            cid,
+            status_msg.message_id,
+            parse_mode='HTML',
+        )
+
+    except Exception as exc:
+        try:
+            bot.edit_message_text(
+                f"❌ خطا در پردازش فایل: <code>{html.escape(str(exc))}</code>",
+                cid,
+                status_msg.message_id,
+                parse_mode='HTML',
+            )
+        except Exception:
+            bot.send_message(cid, f"❌ خطا: {exc}")
 
 
 # =============================================================

@@ -38,4 +38,10 @@ def smart_dest(file_path: str, status_msg, dest: str = None, folder_name: str = 
     if dest == 'tg':
         upload_file_to_telegram(file_path, status_msg, task_info)
     else:
-        upload_to_gdrive_cancellable(file_path, status_msg, folder_name=folder_name, task_info=task_info)
+        user_id = task_info.get('user_id')
+        upload_to_gdrive_cancellable(
+            file_path, status_msg,
+            folder_name=folder_name,
+            task_info=task_info,
+            user_id=user_id,
+        )

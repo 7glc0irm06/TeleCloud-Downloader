@@ -225,11 +225,22 @@ def _do_torrent_download(task, msg):
         except Exception:
             pass
 
-        task_info = {'title': os.path.basename(newest), 'source': 'Torrent', 'quality': ''}
+        task_info = {
+            'title':   os.path.basename(newest),
+            'source':  'Torrent',
+            'quality': '',
+            'user_id': chat_id,
+        }
 
         if is_folder:
             from uploaders.gdrive_upload import upload_to_gdrive_cancellable
-            upload_to_gdrive_cancellable(newest, msg, folder_name=base_name, is_folder=True, task_info=task_info)
+            upload_to_gdrive_cancellable(
+                newest, msg,
+                folder_name=base_name,
+                is_folder=True,
+                task_info=task_info,
+                user_id=chat_id,
+            )
         else:
             smart_dest(newest, msg, dest, folder_name=base_name, task_info=task_info)
 

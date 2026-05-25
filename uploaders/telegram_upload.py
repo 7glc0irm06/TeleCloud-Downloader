@@ -18,7 +18,11 @@ def upload_file_to_telegram(file_path: str, status_msg, task_info=None):
                 chat_id, status_msg.message_id)
         except Exception:
             pass
-        upload_to_gdrive_cancellable(file_path, status_msg, task_info=task_info)
+        upload_to_gdrive_cancellable(
+            file_path, status_msg,
+            task_info=task_info,
+            user_id=task_info.get('user_id'),
+        )
         return
 
     try:

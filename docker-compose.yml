@@ -22,4 +22,5 @@ services:
       - ./cookies:/root/cookies
       - ./cookies_enabled.json:/root/cookies_enabled.json
       - ./rclone.conf:/root/.config/rclone/rclone.conf
+      - ./user_configs:/app/user_configs
       - .:/app
