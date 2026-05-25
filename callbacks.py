@@ -6,7 +6,7 @@ from telebot import types
 
 import config
 from config import (bot, stop_event,
-                    cache_lock, url_cache, user_state)
+                    cache_lock, url_cache, user_state, ADMIN_ID)
 from cookies import (cookie_exists, is_cookie_enabled,
                      set_cookie_enabled, delete_cookie)
 from menu import (main_menu_markup, cookie_list_markup,
@@ -16,6 +16,7 @@ from playlist_menu import _show_playlist_menu, _show_playlist_count_menu
 from downloaders.torrent import _do_torrent_download
 from locales import t
 from user_langs import set_lang
+import db
 
 
 PL_FMT_MAP = {
@@ -47,6 +48,71 @@ YT_LABELS = {
 def callback_query(call):
     cid  = call.message.chat.id
     data = call.data
+
+    # ── Join-request flow (non-approved users) ───────────────────
+    if data.startswith("joinreq|"):
+        action = data.split('|')[1]
+        if action == "request":
+            from handlers import _pending_join_requests
+            if cid in _pending_join_requests:
+                bot.answer_callback_query(
+                    call.id, t(cid, 'join_request_already_sent'), show_alert=True)
+                return
+            _pending_join_requests.add(cid)
+            user  = call.from_user
+            uname = user.username or "N/A"
+            fname = ((user.first_name or '') + ' ' + (user.last_name or '')).strip() or 'N/A'
+            admin_text = t(ADMIN_ID, 'join_request_admin_msg',
+                           user_id=cid,
+                           full_name=fname,
+                           username=uname)
+            mk = types.InlineKeyboardMarkup()
+            mk.row(
+                types.InlineKeyboardButton(
+                    t(ADMIN_ID, 'btn_approve'),
+                    callback_data=f"joinreq|approve|{cid}"),
+                types.InlineKeyboardButton(
+                    t(ADMIN_ID, 'btn_reject'),
+                    callback_data=f"joinreq|reject|{cid}"),
+            )
+            try:
+                bot.send_message(ADMIN_ID, admin_text,
+                                 parse_mode='HTML', reply_markup=mk)
+            except Exception:
+                pass
+            bot.answer_callback_query(call.id, t(cid, 'join_request_sent'), show_alert=True)
+            return
+
+        # Admin-side approval / rejection
+        if action in ('approve', 'reject') and cid == ADMIN_ID:
+            target_id = int(data.split('|')[2])
+            from handlers import _pending_join_requests
+            _pending_join_requests.discard(target_id)
+            if action == 'approve':
+                db.approve_user(target_id)
+                bot.answer_callback_query(call.id, t(cid, 'join_approved_admin_toast'))
+                try:
+                    bot.send_message(target_id,
+                                     t(target_id, 'join_approved_user_notify'),
+                                     reply_markup=main_menu_markup(target_id))
+                except Exception:
+                    pass
+            else:
+                db.reject_user(target_id)
+                bot.answer_callback_query(call.id, t(cid, 'join_rejected_admin_toast'))
+                try:
+                    bot.send_message(target_id, t(target_id, 'join_rejected_user_notify'))
+                except Exception:
+                    pass
+            # Edit the admin's message to remove the buttons
+            try:
+                bot.edit_message_reply_markup(cid, call.message.message_id, reply_markup=None)
+            except Exception:
+                pass
+            return
+
+        bot.answer_callback_query(call.id)
+        return
 
     # ── Language selection ────────────────────────────────────
     if data.startswith("lang|"):

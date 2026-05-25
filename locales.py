@@ -1026,6 +1026,154 @@ STRINGS = {
         'en': "Unknown task type: {t}",
     },
 
+    # ── User profile dashboard ────────────────────────────────
+    'btn_profile': {
+        'fa': "👤 پروفایل من",
+        'en': "👤 My Profile",
+    },
+    'profile_stats': {
+        'fa': (
+            "📊 آمار امروز شما:\n"
+            "📥 دانلودها: {files}/{max_files}\n"
+            "💾 حجم مصرفی: {used_gb:.2f}/{max_gb:.2f} GB"
+        ),
+        'en': (
+            "📊 Your stats today:\n"
+            "📥 Downloads: {files}/{max_files}\n"
+            "💾 Data used: {used_gb:.2f}/{max_gb:.2f} GB"
+        ),
+    },
+
+    # ── Join-request flow ─────────────────────────────────────
+    'registration_closed': {
+        'fa': "🔒 ثبت‌نام در حال حاضر بسته است.",
+        'en': "🔒 Registration is currently closed.",
+    },
+    'btn_request_access': {
+        'fa': "🙋\u200d♂️ درخواست دسترسی",
+        'en': "🙋\u200d♂️ Request Access",
+    },
+    'join_request_sent': {
+        'fa': "✅ درخواست شما به ادمین ارسال شد. لطفاً منتظر بمانید.",
+        'en': "✅ Your request has been sent to the admin. Please wait.",
+    },
+    'join_request_already_sent': {
+        'fa': "⏳ درخواست شما قبلاً ارسال شده. لطفاً منتظر تأیید باشید.",
+        'en': "⏳ Your request was already sent. Please wait for approval.",
+    },
+    'join_request_admin_msg': {
+        'fa': "🙋 درخواست دسترسی جدید:\nUser ID: <code>{user_id}</code>\nنام: {full_name}\nUsername: @{username}",
+        'en': "🙋 New access request:\nUser ID: <code>{user_id}</code>\nName: {full_name}\nUsername: @{username}",
+    },
+    'btn_approve': {
+        'fa': "✅ تایید",
+        'en': "✅ Approve",
+    },
+    'btn_reject': {
+        'fa': "❌ رد",
+        'en': "❌ Reject",
+    },
+    'join_approved_user_notify': {
+        'fa': "✅ درخواست دسترسی شما تأیید شد! اکنون می‌توانید از ربات استفاده کنید.",
+        'en': "✅ Your access request was approved! You can now use the bot.",
+    },
+    'join_rejected_user_notify': {
+        'fa': "❌ متأسفانه درخواست دسترسی شما رد شد.",
+        'en': "❌ Unfortunately your access request was rejected.",
+    },
+    'join_approved_admin_toast': {
+        'fa': "✅ کاربر تأیید شد.",
+        'en': "✅ User approved.",
+    },
+    'join_rejected_admin_toast': {
+        'fa': "❌ کاربر رد شد.",
+        'en': "❌ User rejected.",
+    },
+    'not_approved': {
+        'fa': "❌ شما هنوز تأیید نشده‌اید. لطفاً ابتدا درخواست دسترسی ارسال کنید.",
+        'en': "❌ You are not yet approved. Please send an access request first.",
+    },
+
+    # ── Admin commands ────────────────────────────────────────
+    'admin_only': {
+        'fa': "⛔ این دستور فقط برای ادمین است.",
+        'en': "⛔ This command is for admins only.",
+    },
+    'admin_adduser_usage': {
+        'fa': "❌ استفاده: /adduser <user_id>",
+        'en': "❌ Usage: /adduser <user_id>",
+    },
+    'admin_adduser_done': {
+        'fa': "✅ کاربر {user_id} اضافه و تأیید شد.",
+        'en': "✅ User {user_id} added and approved.",
+    },
+    'admin_deluser_usage': {
+        'fa': "❌ استفاده: /deluser <user_id>",
+        'en': "❌ Usage: /deluser <user_id>",
+    },
+    'admin_deluser_done': {
+        'fa': "✅ کاربر {user_id} حذف شد.",
+        'en': "✅ User {user_id} deleted.",
+    },
+    'admin_setquota_usage': {
+        'fa': "❌ استفاده: /setquota <user_id> <files> <GB>",
+        'en': "❌ Usage: /setquota <user_id> <files> <GB>",
+    },
+    'admin_setquota_done': {
+        'fa': "✅ سهمیه کاربر {user_id} به‌روز شد:\n📥 فایل: {files}\n💾 حجم: {gb} GB",
+        'en': "✅ Quota for user {user_id} updated:\n📥 Files: {files}\n💾 Size: {gb} GB",
+    },
+    'admin_togglereg_done': {
+        'fa': "✅ وضعیت ثبت‌نام عمومی: {status}",
+        'en': "✅ Public registration is now: {status}",
+    },
+    'admin_togglereg_open': {
+        'fa': "باز",
+        'en': "Open",
+    },
+    'admin_togglereg_closed': {
+        'fa': "بسته",
+        'en': "Closed",
+    },
+    'admin_broadcast_usage': {
+        'fa': "❌ استفاده: /broadcast <پیام>",
+        'en': "❌ Usage: /broadcast <message>",
+    },
+    'admin_broadcast_done': {
+        'fa': "✅ پیام به {count} کاربر ارسال شد.",
+        'en': "✅ Message sent to {count} users.",
+    },
+
+    # ── Quota limit messages ──────────────────────────────────
+    'quota_files_exceeded': {
+        'fa': "❌ سقف روزانه فایل شما پر شده است.\n📥 دانلودها: {used}/{max}\nفردا دوباره امتحان کنید.",
+        'en': "❌ Your daily file limit has been reached.\n📥 Downloads: {used}/{max}\nTry again tomorrow.",
+    },
+    'quota_bytes_exceeded': {
+        'fa': "❌ حجم دانلود روزانه شما تمام شده است.\n💾 مصرف: {used}/{max}\nفردا دوباره امتحان کنید.",
+        'en': "❌ Your daily data limit has been reached.\n💾 Used: {used}/{max}\nTry again tomorrow.",
+    },
+
+    # ── Corrected Colab instructions ──────────────────────────
+    'gdrive_colab_instructions': {
+        'fa': (
+            "برای اتصال درایو خود، نیازی به کامپیوتر ندارید!\n\n"
+            "۱. روی لینک زیر کلیک کنید.\n"
+            "۲. دکمه Play را بزنید و با اکانت گوگل خود لاگین کنید.\n"
+            "۳. یک فایل به نام `rclone.conf` به شما داده میشود، آن را دانلود کنید.\n"
+            "۴. فایل را همینجا برای من بفرستید.\n\n"
+            "🔗 لینک اتصال: {colab_url}"
+        ),
+        'en': (
+            "To connect your Drive, no computer is needed!\n\n"
+            "1. Click the link below.\n"
+            "2. Press Play and log in with your Google account.\n"
+            "3. A file named `rclone.conf` will be given to you — download it.\n"
+            "4. Send the file here.\n\n"
+            "🔗 Connection link: {colab_url}"
+        ),
+    },
+
     # ── Google Drive multi-tenant ──────────────────────────────
     'btn_gdrive_connect': {
         'fa': "☁️ اتصال گوگل درایو",

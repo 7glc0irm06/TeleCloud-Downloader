@@ -1,7 +1,7 @@
 import os
 import html
 from pathlib import Path
-from downloader_queue import enqueue
+from downloader_queue import enqueue as _raw_enqueue
 import re
 import threading
 import yt_dlp
@@ -10,9 +10,10 @@ from urllib.parse import urlparse
 
 import config
 from config import (bot, cache_lock, url_cache,
-                    user_state, authorized_users, BOT_PASSWORD,
+                    user_state, ADMIN_ID, REGISTRATION_OPEN,
                     USER_CONFIGS_DIR)
 
+import db
 from cookies import (active_cookies_file, save_cookie_data,
                      cookie_exists, is_cookie_enabled,
                      get_cookie_path, _cookies_state, _save_cookies_state)
@@ -28,6 +29,33 @@ from downloaders.social import _is_ytdlp_url
 from locales import t
 from user_langs import get_lang, has_lang, set_lang
 
+
+# =============================================================
+# Quota-aware enqueue wrapper
+# =============================================================
+def enqueue(task: dict):
+    """
+    Wrap _raw_enqueue with a quota check.
+    - Admin always bypasses.
+    - For regular users: call db.check_and_update_quota.
+      If denied, send an error to the chat and do NOT enqueue.
+    The file_size_bytes estimate is 0 at enqueue time; the real
+    size accounting happens inside the downloader after download.
+    """
+    cid = task.get('chat_id')
+    if cid == ADMIN_ID:
+        return _raw_enqueue(task)
+
+    allowed, reason = db.check_and_update_quota(cid, file_size_bytes=0)
+    if not allowed:
+        try:
+            bot.send_message(cid, reason)
+        except Exception:
+            pass
+        return None
+    return _raw_enqueue(task)
+
+
 YT_FMT_MAP = {
     '1080': ('bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best', False),
     '720':  ('bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best',  False),
@@ -40,6 +68,9 @@ YT_LABELS = {
     'best': '⭐ بهترین',
 }
 
+# Tracks pending join requests to avoid duplicate admin notifications
+_pending_join_requests: set = set()
+
 
 # =============================================================
 # /start
@@ -48,7 +79,7 @@ YT_LABELS = {
 def start(message):
     cid = message.chat.id
 
-    # If the user has no language set yet, show the language picker first
+    # Language picker first
     if not has_lang(cid):
         mk = types.InlineKeyboardMarkup()
         mk.row(
@@ -58,12 +89,144 @@ def start(message):
         bot.send_message(cid, t(cid, 'lang_select'), reply_markup=mk)
         return
 
-    if cid not in authorized_users:
-        user_state[cid] = 'await_password'
-        bot.send_message(cid, t(cid, 'ask_password'))
+    # Admin always has full access
+    if cid == ADMIN_ID:
+        db.add_user(cid, approved=True)
+        user_state[cid] = None
+        bot.send_message(cid, t(cid, 'bot_ready'), reply_markup=main_menu_markup(cid))
         return
-    user_state[cid] = None
-    bot.send_message(cid, t(cid, 'bot_ready'), reply_markup=main_menu_markup(cid))
+
+    # Ensure user row exists
+    db.add_user(cid, approved=REGISTRATION_OPEN)
+
+    if db.is_approved(cid):
+        user_state[cid] = None
+        bot.send_message(cid, t(cid, 'bot_ready'), reply_markup=main_menu_markup(cid))
+        return
+
+    # Registration closed — show join-request button
+    mk = types.InlineKeyboardMarkup()
+    mk.add(types.InlineKeyboardButton(
+        t(cid, 'btn_request_access'),
+        callback_data="joinreq|request",
+    ))
+    bot.send_message(cid, t(cid, 'registration_closed'), reply_markup=mk)
+
+
+# =============================================================
+# Admin command: /adduser <id>
+# =============================================================
+@bot.message_handler(commands=['adduser'])
+def cmd_adduser(message):
+    cid = message.chat.id
+    if cid != ADMIN_ID:
+        bot.reply_to(message, t(cid, 'admin_only'))
+        return
+    parts = message.text.split()
+    if len(parts) < 2:
+        bot.reply_to(message, t(cid, 'admin_adduser_usage'))
+        return
+    try:
+        uid = int(parts[1])
+    except ValueError:
+        bot.reply_to(message, t(cid, 'admin_adduser_usage'))
+        return
+    db.approve_user(uid)
+    bot.reply_to(message, t(cid, 'admin_adduser_done', user_id=uid))
+    # Notify the newly approved user
+    try:
+        bot.send_message(uid, t(uid, 'join_approved_user_notify'),
+                         reply_markup=main_menu_markup(uid))
+    except Exception:
+        pass
+
+
+# =============================================================
+# Admin command: /deluser <id>
+# =============================================================
+@bot.message_handler(commands=['deluser'])
+def cmd_deluser(message):
+    cid = message.chat.id
+    if cid != ADMIN_ID:
+        bot.reply_to(message, t(cid, 'admin_only'))
+        return
+    parts = message.text.split()
+    if len(parts) < 2:
+        bot.reply_to(message, t(cid, 'admin_deluser_usage'))
+        return
+    try:
+        uid = int(parts[1])
+    except ValueError:
+        bot.reply_to(message, t(cid, 'admin_deluser_usage'))
+        return
+    db.delete_user(uid)
+    bot.reply_to(message, t(cid, 'admin_deluser_done', user_id=uid))
+
+
+# =============================================================
+# Admin command: /setquota <id> <files> <GB>
+# =============================================================
+@bot.message_handler(commands=['setquota'])
+def cmd_setquota(message):
+    cid = message.chat.id
+    if cid != ADMIN_ID:
+        bot.reply_to(message, t(cid, 'admin_only'))
+        return
+    parts = message.text.split()
+    if len(parts) < 4:
+        bot.reply_to(message, t(cid, 'admin_setquota_usage'))
+        return
+    try:
+        uid   = int(parts[1])
+        files = int(parts[2])
+        gb    = float(parts[3])
+    except ValueError:
+        bot.reply_to(message, t(cid, 'admin_setquota_usage'))
+        return
+    bytes_ = int(gb * 1024 ** 3)
+    db.set_custom_quota(uid, files, bytes_)
+    bot.reply_to(message, t(cid, 'admin_setquota_done',
+                             user_id=uid, files=files, gb=gb))
+
+
+# =============================================================
+# Admin command: /togglereg
+# =============================================================
+@bot.message_handler(commands=['togglereg'])
+def cmd_togglereg(message):
+    cid = message.chat.id
+    if cid != ADMIN_ID:
+        bot.reply_to(message, t(cid, 'admin_only'))
+        return
+    config.REGISTRATION_OPEN = not config.REGISTRATION_OPEN
+    status_key = 'admin_togglereg_open' if config.REGISTRATION_OPEN else 'admin_togglereg_closed'
+    bot.reply_to(message,
+                 t(cid, 'admin_togglereg_done', status=t(cid, status_key)))
+
+
+# =============================================================
+# Admin command: /broadcast <message>
+# =============================================================
+@bot.message_handler(commands=['broadcast'])
+def cmd_broadcast(message):
+    cid  = message.chat.id
+    if cid != ADMIN_ID:
+        bot.reply_to(message, t(cid, 'admin_only'))
+        return
+    text = message.text.partition(' ')[2].strip()
+    if not text:
+        bot.reply_to(message, t(cid, 'admin_broadcast_usage'))
+        return
+    users = db.get_all_approved_users()
+    sent  = 0
+    for uid in users:
+        try:
+            bot.send_message(uid, text)
+            sent += 1
+        except Exception:
+            pass
+    bot.reply_to(message, t(cid, 'admin_broadcast_done', count=sent))
+
 
 
 # =============================================================
@@ -74,9 +237,8 @@ def handle_incoming_files(message):
     cid   = message.chat.id
     state = user_state.get(cid)
 
-    if cid not in authorized_users:
-        user_state[cid] = 'await_password'
-        bot.reply_to(message, t(cid, 'ask_password_file'))
+    if cid != ADMIN_ID and not db.is_approved(cid):
+        bot.reply_to(message, t(cid, 'not_approved'))
         return
 
     # ── rclone.conf upload — multi-tenant Google Drive setup ──────────────
@@ -233,14 +395,10 @@ def handle_text(message):
     text  = message.text.strip() if message.text else ""
     state = user_state.get(cid)
 
-    if cid not in authorized_users:
-        if text == BOT_PASSWORD:
-            authorized_users.add(cid)
-            user_state[cid] = None
-            bot.send_message(cid, t(cid, 'welcome'), reply_markup=main_menu_markup(cid))
-        else:
-            user_state[cid] = 'await_password'
-            bot.send_message(cid, t(cid, 'wrong_password'))
+    # Auth gate (admins bypass, approved users pass, others are blocked)
+    if cid != ADMIN_ID and not db.is_approved(cid):
+        # Allow the language selection to pass through as a callback, not here
+        bot.send_message(cid, t(cid, 'not_approved'))
         return
 
     if isinstance(state, str) and state.startswith('await_cookie_rename|'):
@@ -312,6 +470,11 @@ def _handle_menu(cid, text, message) -> bool:
         user_state[cid] = None
         bot.send_message(cid, t(cid, 'settings_panel_title'),
                          reply_markup=settings_inline_markup(cid))
+        return True
+
+    # ── Profile button ────────────────────────────────────────
+    if text in (t(cid, 'btn_profile'), "👤 پروفایل من", "👤 My Profile"):
+        _send_profile_stats(cid)
         return True
 
     if text in (t(cid, 'btn_ytdlp'), "🔽 دانلود با yt-dlp", "🔽 Download with yt-dlp"):
@@ -797,3 +960,36 @@ def _handle_playlist_count(cid, text, state):
             cid,
             t(cid, 'playlist_dest_msg', media=media, count=count),
             reply_markup=dest_mk)
+
+
+# =============================================================
+# Profile stats helper
+# =============================================================
+def _send_profile_stats(cid: int) -> None:
+    """Send the user their daily usage stats from the DB."""
+    from config import MAX_DAILY_FILES, MAX_DAILY_BYTES
+
+    row = db.get_user(cid)
+    if row is None:
+        # Edge case: user not in DB yet (shouldn't happen after /start but be safe)
+        db.add_user(cid, approved=db.is_approved(cid))
+        row = db.get_user(cid)
+
+    files_used  = row['files_downloaded']  if row else 0
+    bytes_used  = row['bytes_downloaded']   if row else 0
+    max_files   = (row['custom_quota_files']
+                   if row and row['custom_quota_files'] is not None
+                   else MAX_DAILY_FILES)
+    max_bytes   = (row['custom_quota_bytes']
+                   if row and row['custom_quota_bytes'] is not None
+                   else MAX_DAILY_BYTES)
+
+    used_gb = bytes_used  / (1024 ** 3)
+    max_gb  = max_bytes   / (1024 ** 3)
+
+    bot.send_message(
+        cid,
+        t(cid, 'profile_stats',
+          files=files_used, max_files=max_files,
+          used_gb=used_gb,  max_gb=max_gb),
+    )

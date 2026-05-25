@@ -7,7 +7,6 @@ from collections import OrderedDict
 # Paths and constants
 # =============================================================
 TOKEN           = os.environ.get('DOWNLOADER_BOT_TOKEN')
-BOT_PASSWORD    = os.environ.get('BOT_PASSWORD')
 DRIVE_FOLDER_ID = '1n-I9Ipd2I5SL27HhFlaPzaMzRtFCHy-I'
 DOWNLOAD_DIR    = '/root/downloads'
 COOKIES_DIR     = '/root/cookies'
@@ -15,21 +14,32 @@ COOKIES_STATE   = '/root/cookies_enabled.json'
 USER_LANGS_FILE = '/root/user_langs.json'
 USER_CONFIGS_DIR = '/app/user_configs'
 
+# =============================================================
+# Multi-tenant admin & registration settings
+# =============================================================
+# The single Telegram user_id that has full admin privileges.
+ADMIN_ID = int(os.environ.get('ADMIN_ID', '0'))
+
+# When True, any user who sends /start can self-register.
+# When False, users must request access and wait for admin approval.
+REGISTRATION_OPEN = os.environ.get('REGISTRATION_OPEN', 'false').lower() in ('1', 'true', 'yes')
+
+# Global daily quota defaults (overridable per-user in the DB).
+MAX_DAILY_FILES = int(os.environ.get('MAX_DAILY_FILES', '20'))
+MAX_DAILY_BYTES = int(os.environ.get('MAX_DAILY_BYTES', str(5 * 1024 ** 3)))  # 5 GB
+
 # Google Colab notebook URL shown to users during Drive onboarding.
-# Set via the COLAB_URL env-var; falls back to a placeholder so the bot
-# still runs even if the env-var is not configured yet.
 COLAB_URL = os.environ.get(
     'COLAB_URL',
-    'https://colab.research.google.com/  ← لینک را از ادمین بخواهید'
+    'https://colab.research.google.com/drive/1Ltyqs4i0UAuR6FpBrn3ygMuqlnPo_igV?usp=sharing'
 )
 
 MAX_RETRIES  = 3
 RETRY_DELAY  = 10
 
 # =============================================================
-# Per-user state
+# Per-user runtime state
 # =============================================================
-authorized_users = set()
 user_state       = {}
 tg_upload_mode   = set()
 gd_upload_mode   = set()
@@ -97,8 +107,11 @@ stop_event     = threading.Event()
 rclone_process = None
 
 # =============================================================
-# Create required directories
+# Create required directories & initialise DB
 # =============================================================
 os.makedirs(DOWNLOAD_DIR,    exist_ok=True)
 os.makedirs(COOKIES_DIR,     exist_ok=True)
 os.makedirs(USER_CONFIGS_DIR, exist_ok=True)
+
+from db import init_db
+init_db()
