@@ -1025,6 +1025,100 @@ STRINGS = {
         'fa': "نوع task ناشناخته: {t}",
         'en': "Unknown task type: {t}",
     },
+
+    # ── Google Drive multi-tenant ──────────────────────────────
+    'btn_gdrive_connect': {
+        'fa': "☁️ اتصال گوگل درایو",
+        'en': "☁️ Connect Google Drive",
+    },
+    'btn_gdrive_connected': {
+        'fa': "✅ درایو متصل است",
+        'en': "✅ Drive Connected",
+    },
+    'gdrive_connect_title': {
+        'fa': "☁️ اتصال گوگل درایو شخصی",
+        'en': "☁️ Connect Your Google Drive",
+    },
+    'gdrive_connect_msg': {
+        'fa': (
+            "☁️ <b>اتصال گوگل درایو شخصی</b>\n\n"
+            "با این قابلیت، تمام فایل‌های دانلودشده مستقیماً در <b>گوگل درایو خودتان</b> ذخیره می‌شوند."
+            " نیازی به کامپیوتر ندارید — همه کارها از گوشی قابل انجام است.\n\n"
+            "━━━━━━━━━━━━━━━━━━\n"
+            "📋 <b>مراحل اتصال:</b>\n\n"
+            "1️⃣ لینک زیر را در مرورگر خود باز کنید:\n"
+            "👉 <code>{colab_url}</code>\n\n"
+            "2️⃣ روی ▶️ <b>Run</b> کلیک کنید و با حساب گوگل خود وارد شوید.\n\n"
+            "3️⃣ اسکریپت به‌طور خودکار پوشه <b>TeleCloud-Downloads</b> را در درایو شما ایجاد می‌کند "
+            "و فایل <code>rclone.conf</code> را برای دانلود آماده می‌کند.\n\n"
+            "4️⃣ فایل <code>rclone.conf</code> دانلودشده را <b>همین‌جا به من بفرستید</b>.\n\n"
+            "━━━━━━━━━━━━━━━━━━\n"
+            "🔒 <b>امنیت:</b> فایل config فقط روی سرور شما ذخیره می‌شود و به اشتراک گذاشته نمی‌شود.\n"
+            "♻️ <b>توکن:</b> اعتبار اتصال نامحدود است و به‌صورت خودکار تمدید می‌شود."
+        ),
+        'en': (
+            "☁️ <b>Connect Your Personal Google Drive</b>\n\n"
+            "With this feature, all downloaded files are saved directly to <b>your own Google Drive</b>."
+            " No computer needed — everything works from your phone.\n\n"
+            "━━━━━━━━━━━━━━━━━━\n"
+            "📋 <b>Setup Steps:</b>\n\n"
+            "1️⃣ Open the link below in your browser:\n"
+            "👉 <code>{colab_url}</code>\n\n"
+            "2️⃣ Click ▶️ <b>Run</b> and sign in with your Google account.\n\n"
+            "3️⃣ The script will automatically create a <b>TeleCloud-Downloads</b> folder in your Drive "
+            "and prepare the <code>rclone.conf</code> file for download.\n\n"
+            "4️⃣ Send the downloaded <code>rclone.conf</code> file <b>back here</b>.\n\n"
+            "━━━━━━━━━━━━━━━━━━\n"
+            "🔒 <b>Security:</b> The config file is stored only on your server and is never shared.\n"
+            "♻️ <b>Token:</b> The connection credential is permanent and refreshes automatically."
+        ),
+    },
+    'gdrive_status_connected': {
+        'fa': (
+            "✅ <b>گوگل درایو متصل است</b>\n\n"
+            "📂 فایل‌های شما در پوشه <b>TeleCloud-Downloads</b> در درایو شما ذخیره می‌شوند.\n\n"
+            "برای قطع اتصال و حذف کانفیگ، دکمه زیر را بزنید:"
+        ),
+        'en': (
+            "✅ <b>Google Drive is connected</b>\n\n"
+            "📂 Your files are saved to the <b>TeleCloud-Downloads</b> folder in your Drive.\n\n"
+            "To disconnect and remove your config, press the button below:"
+        ),
+    },
+    'btn_gdrive_disconnect': {
+        'fa': "🔌 قطع اتصال درایو",
+        'en': "🔌 Disconnect Drive",
+    },
+    'gdrive_disconnect_confirm': {
+        'fa': (
+            "⚠️ <b>آیا مطمئنید؟</b>\n\n"
+            "با قطع اتصال، کانفیگ شخصی شما از سرور حذف می‌شود.\n"
+            "فایل‌های قبلاً آپلودشده در درایو شما باقی می‌مانند.\n\n"
+            "برای اتصال مجدد باید دوباره اسکریپت Colab را اجرا کنید."
+        ),
+        'en': (
+            "⚠️ <b>Are you sure?</b>\n\n"
+            "Disconnecting will remove your personal config from the server.\n"
+            "Previously uploaded files in your Drive will remain intact.\n\n"
+            "To reconnect, you will need to run the Colab script again."
+        ),
+    },
+    'btn_gdrive_disconnect_confirm': {
+        'fa': "✅ بله، قطع کن",
+        'en': "✅ Yes, Disconnect",
+    },
+    'btn_gdrive_disconnect_cancel': {
+        'fa': "❌ انصراف",
+        'en': "❌ Cancel",
+    },
+    'gdrive_disconnected_toast': {
+        'fa': "🔌 اتصال درایو قطع شد.",
+        'en': "🔌 Drive disconnected.",
+    },
+    'gdrive_disconnected_msg': {
+        'fa': "🔌 اتصال گوگل درایو قطع شد.\n\nبرای اتصال مجدد از منوی تنظیمات استفاده کنید.",
+        'en': "🔌 Google Drive disconnected.\n\nUse the Settings menu to reconnect.",
+    },
 }
 
 

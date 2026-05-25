@@ -10,11 +10,9 @@ from urllib.parse import urlparse
 
 import config
 from config import (bot, cache_lock, url_cache,
-                    user_state, authorized_users, BOT_PASSWORD)
+                    user_state, authorized_users, BOT_PASSWORD,
+                    USER_CONFIGS_DIR)
 
-# Directory where per-user rclone configs are persisted inside the container
-USER_CONFIGS_DIR = "/app/user_configs"
-os.makedirs(USER_CONFIGS_DIR, exist_ok=True)
 from cookies import (active_cookies_file, save_cookie_data,
                      cookie_exists, is_cookie_enabled,
                      get_cookie_path, _cookies_state, _save_cookies_state)

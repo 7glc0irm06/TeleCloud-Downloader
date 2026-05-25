@@ -140,6 +140,12 @@ def callback_query(call):
                              reply_markup=cookie_list_markup(cid))
             return
 
+        elif action == "gdrive":
+            # Open the Drive setup / status panel as a new message
+            bot.answer_callback_query(call.id)
+            _handle_gdrive_settings(call, cid)
+            return
+
         else:
             bot.answer_callback_query(call.id)
             return
@@ -186,6 +192,11 @@ def callback_query(call):
         bot.answer_callback_query(call.id, toast, show_alert=False)
         return
 
+
+    # ── Google Drive connect / disconnect ─────────────────────
+    if data.startswith("gdrive|"):
+        _handle_gdrive_callback(call, cid, data)
+        return
 
     # ── Cancel ────────────────────────────────────────────────
     if data == "cancel_task":
@@ -758,3 +769,109 @@ def playlist_custom_count(call):
     user_state[cid] = f'await_playlist_count|{mid}|{"1" if audio else "0"}|{quality}'
     bot.answer_callback_query(call.id)
     bot.send_message(cid, t(cid, 'playlist_ask_custom'))
+
+
+# =============================================================
+# Google Drive multi-tenant helpers
+# =============================================================
+def _handle_gdrive_settings(call, cid: int) -> None:
+    """
+    Show either:
+      • The step-by-step Colab setup instructions (if no config yet), or
+      • A "connected" status panel with a Disconnect button.
+    Always sent as a new message so it can't clash with the settings markup.
+    """
+    from pathlib import Path
+    from config import USER_CONFIGS_DIR, COLAB_URL
+
+    conf_path = Path(USER_CONFIGS_DIR) / f"rclone_{cid}.conf"
+
+    if conf_path.exists():
+        # ── Already connected: show status + disconnect option ────────────
+        mk = types.InlineKeyboardMarkup()
+        mk.add(types.InlineKeyboardButton(
+            t(cid, 'btn_gdrive_disconnect'),
+            callback_data="gdrive|disconnect_ask",
+        ))
+        bot.send_message(
+            cid,
+            t(cid, 'gdrive_status_connected'),
+            parse_mode='HTML',
+            reply_markup=mk,
+        )
+    else:
+        # ── Not connected yet: show setup instructions ────────────────────
+        bot.send_message(
+            cid,
+            t(cid, 'gdrive_connect_msg', colab_url=COLAB_URL),
+            parse_mode='HTML',
+            disable_web_page_preview=True,
+        )
+
+
+def _handle_gdrive_callback(call, cid: int, data: str) -> None:
+    """
+    Handle all gdrive|* callback actions:
+      gdrive|disconnect_ask  → show confirmation dialog
+      gdrive|disconnect_yes  → delete config, refresh settings button
+      gdrive|disconnect_no   → silent dismiss
+    """
+    from pathlib import Path
+    from config import USER_CONFIGS_DIR
+    from menu import settings_inline_markup
+
+    action = data.split('|', 1)[1]  # everything after "gdrive|"
+
+    if action == "disconnect_ask":
+        mk = types.InlineKeyboardMarkup()
+        mk.row(
+            types.InlineKeyboardButton(
+                t(cid, 'btn_gdrive_disconnect_confirm'),
+                callback_data="gdrive|disconnect_yes",
+            ),
+            types.InlineKeyboardButton(
+                t(cid, 'btn_gdrive_disconnect_cancel'),
+                callback_data="gdrive|disconnect_no",
+            ),
+        )
+        bot.answer_callback_query(call.id)
+        try:
+            bot.edit_message_text(
+                t(cid, 'gdrive_disconnect_confirm'),
+                cid, call.message.message_id,
+                parse_mode='HTML',
+                reply_markup=mk,
+            )
+        except Exception:
+            bot.send_message(
+                cid,
+                t(cid, 'gdrive_disconnect_confirm'),
+                parse_mode='HTML',
+                reply_markup=mk,
+            )
+
+    elif action == "disconnect_yes":
+        conf_path = Path(USER_CONFIGS_DIR) / f"rclone_{cid}.conf"
+        try:
+            conf_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        bot.answer_callback_query(call.id, t(cid, 'gdrive_disconnected_toast'))
+        # Edit the confirmation message to a plain success notice
+        try:
+            bot.edit_message_text(
+                t(cid, 'gdrive_disconnected_msg'),
+                cid, call.message.message_id,
+                parse_mode='HTML',
+            )
+        except Exception:
+            pass
+        # Proactively refresh any open settings panel so the button label updates
+        # (best-effort; the user will see the updated label next time they open settings)
+
+    elif action == "disconnect_no":
+        bot.answer_callback_query(call.id)
+        try:
+            bot.delete_message(cid, call.message.message_id)
+        except Exception:
+            pass

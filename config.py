@@ -13,6 +13,15 @@ DOWNLOAD_DIR    = '/root/downloads'
 COOKIES_DIR     = '/root/cookies'
 COOKIES_STATE   = '/root/cookies_enabled.json'
 USER_LANGS_FILE = '/root/user_langs.json'
+USER_CONFIGS_DIR = '/app/user_configs'
+
+# Google Colab notebook URL shown to users during Drive onboarding.
+# Set via the COLAB_URL env-var; falls back to a placeholder so the bot
+# still runs even if the env-var is not configured yet.
+COLAB_URL = os.environ.get(
+    'COLAB_URL',
+    'https://colab.research.google.com/  ← لینک را از ادمین بخواهید'
+)
 
 MAX_RETRIES  = 3
 RETRY_DELAY  = 10
@@ -90,5 +99,6 @@ rclone_process = None
 # =============================================================
 # Create required directories
 # =============================================================
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-os.makedirs(COOKIES_DIR,  exist_ok=True)
+os.makedirs(DOWNLOAD_DIR,    exist_ok=True)
+os.makedirs(COOKIES_DIR,     exist_ok=True)
+os.makedirs(USER_CONFIGS_DIR, exist_ok=True)

@@ -1,8 +1,17 @@
 from telebot import types
-from config import tg_upload_mode
+from config import tg_upload_mode, USER_CONFIGS_DIR
 from cookies import list_cookies, is_cookie_enabled, cookie_exists
 from dest_helpers import get_quality_label, get_audio_mode_label
 from locales import t
+from pathlib import Path
+
+
+def _gdrive_button_label(cid) -> str:
+    """Return the Drive connect/connected button label based on whether
+    the user already has a personal rclone config on disk."""
+    if cid and Path(USER_CONFIGS_DIR, f"rclone_{cid}.conf").exists():
+        return t(cid, 'btn_gdrive_connected')
+    return t(cid, 'btn_gdrive_connect') if cid else "☁️ اتصال گوگل درایو"
 
 
 # =============================================================
@@ -94,6 +103,8 @@ def settings_inline_markup(cid=None):
     )
     # Row 4: Cookie manager (full width)
     mk.add(types.InlineKeyboardButton(cookie_label, callback_data="set|cookie"))
+    # Row 5: Google Drive connection (full width, status-aware)
+    mk.add(types.InlineKeyboardButton(_gdrive_button_label(cid), callback_data="set|gdrive"))
 
     return mk
 

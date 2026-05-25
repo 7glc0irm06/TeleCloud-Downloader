@@ -5,13 +5,12 @@ import time
 import html
 from pathlib import Path
 
-from config import bot, stop_event, DRIVE_FOLDER_ID
+from config import bot, stop_event, DRIVE_FOLDER_ID, USER_CONFIGS_DIR
 from utils import build_rich_progress_card, cleanup_path, fmt_size
 
 # ──────────────────────────────────────────────────────────────
 # Per-user rclone config resolution
 # ──────────────────────────────────────────────────────────────
-USER_CONFIGS_DIR     = "/app/user_configs"
 DEFAULT_RCLONE_CONF = "/root/.config/rclone/rclone.conf"
 
 
