@@ -9,6 +9,14 @@ def upload_file_to_telegram(file_path: str, status_msg, task_info=None):
         task_info = {}
     chat_id = status_msg.chat.id
     cid     = chat_id
+
+    # Fix 1: Fast-fail cancellation check — mirrors the pattern in youtube.py:352
+    # and social.py:62. If the user already cancelled, bail out immediately before
+    # touching the network or the file; the caller is responsible for cleanup.
+    _stop = task_info.get('_stop')
+    if _stop and _stop.is_set():
+        return
+
     size_mb = os.path.getsize(file_path) / (1024 * 1024)
 
     if size_mb > 2000:
@@ -82,6 +90,25 @@ def upload_folder_to_telegram(folder_path: str, status_msg, task_info=None):
                     for f in os.listdir(folder_path)
                     if os.path.isfile(os.path.join(folder_path, f))])
     bot.send_message(chat_id, t(cid, 'tg_folder_files', count=len(files)))
-    for i, fp in enumerate(files, 1):
-        sub = bot.send_message(chat_id, f"⬆️ {i}/{len(files)}: {os.path.basename(fp)}")
-        upload_file_to_telegram(fp, sub, task_info)
+
+    # Fix 3: try/finally guarantees the entire folder_path is wiped from disk
+    # whether the loop completes normally, breaks early on cancellation, or
+    # raises. This prevents the storage leak where the parent directory and any
+    # skipped/partially-uploaded files would otherwise remain on disk forever.
+    _stop = task_info.get('_stop')
+    try:
+        for i, fp in enumerate(files, 1):
+            # Fix 2: Per-iteration cancellation check. As soon as _stop is set
+            # (user clicked Cancel), we break immediately so no new files are
+            # started. upload_file_to_telegram's own Fix 1 guard also catches
+            # the case where cancellation fires mid-iteration.
+            if _stop and _stop.is_set():
+                break
+            sub = bot.send_message(chat_id, f"⬆️ {i}/{len(files)}: {os.path.basename(fp)}")
+            upload_file_to_telegram(fp, sub, task_info)
+    finally:
+        # Wipes the parent folder and any remaining (skipped) files.
+        # Individual successfully-uploaded files are already deleted by
+        # upload_file_to_telegram's own cleanup_path(file_path) call, so this
+        # is primarily a safety net for the directory entry and unprocessed files.
+        cleanup_path(folder_path)
