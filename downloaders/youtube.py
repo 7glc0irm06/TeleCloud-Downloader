@@ -12,7 +12,7 @@ import db
 from config import bot, DOWNLOAD_DIR, cache_lock, url_cache, ADMIN_ID
 from cookies import active_cookies_file
 from utils import (check_disk_space, get_free_space, cleanup_path,
-                   fmt_size, build_rich_progress_card, friendly_error)
+                   fmt_size, build_rich_progress_card, friendly_error, safe_tg_call)
 from uploaders.smart_dest import smart_dest
 
 def _cancel_markup(cid=None):
@@ -217,7 +217,7 @@ def process_youtube_download(task):
             actual_title = d.get('info_dict', {}).get('title', title_kw)
             task['actual_title'] = actual_title
             card = build_rich_progress_card("⬇️", actual_title, pct_f, pct, total, speed, eta, "YouTube", quality_label, cid=cid)
-            try: bot.edit_message_text(card, chat_id, msg.message_id, reply_markup=_cancel_markup(cid))
+            try: safe_tg_call(bot.edit_message_text, card, chat_id, msg.message_id, reply_markup=_cancel_markup(cid))
             except Exception: pass
             last_upd[0] = time.time()
 
@@ -249,7 +249,7 @@ def process_youtube_download(task):
             if not _check_subtitle_embedded(folder, subtitle_lang):
                 subtitle_warning = t(cid, 'subtitle_not_found_warn')
 
-        try: bot.edit_message_text(t(cid, 'processing_file'), chat_id, msg.message_id)
+        try: safe_tg_call(bot.edit_message_text, t(cid, 'processing_file'), chat_id, msg.message_id)
         except Exception: pass
 
         # ── Byte quota accounting ──────────────────────────────
@@ -314,16 +314,17 @@ def process_playlist_download(task):
         total    = len(entries)
     except Exception as e:
         logger.error("Playlist fetch failed: %s", e, exc_info=True)
-        try: bot.edit_message_text(f"❌ {friendly_error(str(e), cid=cid)}", chat_id, msg.message_id)
+        try: safe_tg_call(bot.edit_message_text, f"❌ {friendly_error(str(e), cid=cid)}", chat_id, msg.message_id)
         except Exception: pass
         return
 
     folder    = os.path.join(DOWNLOAD_DIR, pl_title)
     os.makedirs(folder, exist_ok=True)
-    completed = [0]
-    errors    = [0]
-    lock      = threading.Lock()
-    semaphore = threading.Semaphore(2)
+    completed    = [0]
+    errors       = [0]
+    lock         = threading.Lock()
+    semaphore    = threading.Semaphore(2)
+    last_pl_upd  = [time.time()]  # throttle playlist-summary edits to ≤1/3 s
 
     if audio_only:
         audio_codec   = task.get('audio_format', 'mp3')
@@ -401,22 +402,33 @@ def process_playlist_download(task):
                     errors[0]    += 1
                     completed[0] += 1
 
-            with lock: done = completed[0]
+            with lock:
+                done = completed[0]
+                now  = time.time()
+                # Throttle playlist-summary edits: update at most once per 3 s
+                # (or always on the very last item to show the final count).
+                should_edit = (done == total) or (now - last_pl_upd[0] > 3)
+                if should_edit:
+                    last_pl_upd[0] = now
             from utils import make_progress_bar
-            try:
-                bar = make_progress_bar(done / total * 100)
-                bot.edit_message_text(
-                    f"📋 {pl_title}\n{bar} {done}/{total}\n✅ {done - errors[0]}  ❌ {errors[0]}",
-                    chat_id, msg.message_id, reply_markup=_cancel_markup(cid))
-            except Exception: pass
+            if should_edit:
+                try:
+                    bar = make_progress_bar(done / total * 100)
+                    safe_tg_call(
+                        bot.edit_message_text,
+                        f"📋 {pl_title}\n{bar} {done}/{total}\n✅ {done - errors[0]}  ❌ {errors[0]}",
+                        chat_id, msg.message_id, reply_markup=_cancel_markup(cid))
+                except Exception: pass
 
     threads = [threading.Thread(target=process_one, args=(e, i)) for i, e in enumerate(entries, 1)]
     for th in threads: th.start()
     for th in threads: th.join()
 
-    try: bot.edit_message_text(
-        t(cid, 'playlist_done', title=pl_title, ok=total - errors[0], total=total),
-        chat_id, msg.message_id)
+    try:
+        safe_tg_call(
+            bot.edit_message_text,
+            t(cid, 'playlist_done', title=pl_title, ok=total - errors[0], total=total),
+            chat_id, msg.message_id)
     except Exception: pass
 
 
@@ -425,9 +437,9 @@ def _handle_yt_error(e, chat_id, msg, cid=None):
     err = str(e)
     cancel_kw = t(cid, 'cancelled_keyword') if cid else "لغو"
     if cancel_kw in err:
-        try: bot.edit_message_text(t(cid, 'download_cancelled') if cid else "🚫 دانلود لغو شد.", chat_id, msg.message_id)
+        try: safe_tg_call(bot.edit_message_text, t(cid, 'download_cancelled') if cid else "🚫 دانلود لغو شد.", chat_id, msg.message_id)
         except Exception: pass
     else:
         text = f"❌ {friendly_error(err, cid=cid)}"
-        try: bot.edit_message_text(text, chat_id, msg.message_id)
-        except Exception: bot.send_message(chat_id, text)
+        try: safe_tg_call(bot.edit_message_text, text, chat_id, msg.message_id)
+        except Exception: safe_tg_call(bot.send_message, chat_id, text)

@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 import db
 from config import bot, DOWNLOAD_DIR, ADMIN_ID
 from utils import (check_disk_space, get_free_space, cleanup_path,
-                   build_rich_progress_card, friendly_error)
+                   build_rich_progress_card, friendly_error, safe_tg_call)
 from uploaders.smart_dest import smart_dest
 
 
@@ -92,7 +92,7 @@ def process_direct_download(task):
                                 "⬇️", filename, pct, downloaded, total, speed, eta,
                                 "Direct Link", "", cid=cid)
                             try:
-                                bot.edit_message_text(card, chat_id, msg.message_id, reply_markup=_cancel_markup(cid))
+                                safe_tg_call(bot.edit_message_text, card, chat_id, msg.message_id, reply_markup=_cancel_markup(cid))
                             except Exception:
                                 pass
                             last_upd = now
@@ -100,7 +100,7 @@ def process_direct_download(task):
         folder_name = os.path.splitext(filename)[0][:40]
 
         try:
-            bot.edit_message_text(t(cid, 'direct_upload_preparing'), chat_id, msg.message_id)
+            safe_tg_call(bot.edit_message_text, t(cid, 'direct_upload_preparing'), chat_id, msg.message_id)
         except Exception:
             pass
 
@@ -119,12 +119,12 @@ def process_direct_download(task):
         cancel_kw = t(cid, 'cancelled_keyword') if cid else "لغو"
         if cancel_kw in err:
             try:
-                bot.edit_message_text(t(cid, 'download_cancelled'), chat_id, msg.message_id)
+                safe_tg_call(bot.edit_message_text, t(cid, 'download_cancelled'), chat_id, msg.message_id)
             except Exception:
                 pass
         else:
             text = f"❌ {friendly_error(err, cid=cid)}"
             try:
-                bot.edit_message_text(text, chat_id, msg.message_id)
+                safe_tg_call(bot.edit_message_text, text, chat_id, msg.message_id)
             except Exception:
-                bot.send_message(chat_id, text)
+                safe_tg_call(bot.send_message, chat_id, text)

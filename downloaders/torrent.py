@@ -5,7 +5,7 @@ import time
 import subprocess
 
 from config import bot, cache_lock, url_cache, DOWNLOAD_DIR
-from utils import fmt_size, build_rich_progress_card, cleanup_path, friendly_error
+from utils import fmt_size, build_rich_progress_card, cleanup_path, friendly_error, safe_tg_call
 from uploaders.smart_dest import smart_dest
 
 
@@ -80,7 +80,8 @@ def process_torrent_download(task):
             types.InlineKeyboardButton(t(cid, 'torrent_btn_cancel'),   callback_data=f"trc|no|{msg.message_id}")
         )
         try:
-            bot.edit_message_text(
+            safe_tg_call(
+                bot.edit_message_text,
                 t(cid, 'torrent_confirm_msg', size=sz_str, sd=sd, lc=lc, verdict=verdict),
                 chat_id, msg.message_id, reply_markup=confirm_mk)
         except Exception:
@@ -133,7 +134,7 @@ def _do_torrent_download(task, msg):
             if task['_stop'].is_set():
                 process.terminate()
                 try:
-                    bot.edit_message_text(t(cid, 'torrent_cancel_cb'), chat_id, msg.message_id)
+                    safe_tg_call(bot.edit_message_text, t(cid, 'torrent_cancel_cb'), chat_id, msg.message_id)
                 except Exception:
                     pass
                 return
@@ -141,7 +142,7 @@ def _do_torrent_download(task, msg):
             if time.time() - last_progress_time > TIMEOUT:
                 process.terminate()
                 try:
-                    bot.edit_message_text(t(cid, 'torrent_timeout'), chat_id, msg.message_id)
+                    safe_tg_call(bot.edit_message_text, t(cid, 'torrent_timeout'), chat_id, msg.message_id)
                 except Exception:
                     pass
                 return
@@ -200,7 +201,9 @@ def _do_torrent_download(task, msg):
                     if timeout_warn:
                         card += timeout_warn
                     try:
-                        bot.edit_message_text(card, chat_id, msg.message_id, reply_markup=_cancel_markup(cid))
+                        safe_tg_call(
+                            bot.edit_message_text, card, chat_id, msg.message_id,
+                            reply_markup=_cancel_markup(cid))
                     except Exception:
                         pass
                     last_update = time.time()
@@ -222,7 +225,7 @@ def _do_torrent_download(task, msg):
         is_folder = os.path.isdir(newest)
 
         try:
-            bot.edit_message_text(t(cid, 'torrent_preparing_upload'), chat_id, msg.message_id)
+            safe_tg_call(bot.edit_message_text, t(cid, 'torrent_preparing_upload'), chat_id, msg.message_id)
         except Exception:
             pass
 
@@ -251,6 +254,6 @@ def _do_torrent_download(task, msg):
         if cancel_kw not in err and "timeout" not in err:
             text = f"❌ {friendly_error(err, cid=cid)}"
             try:
-                bot.edit_message_text(text, chat_id, msg.message_id)
+                safe_tg_call(bot.edit_message_text, text, chat_id, msg.message_id)
             except Exception:
-                bot.send_message(chat_id, text)
+                safe_tg_call(bot.send_message, chat_id, text)

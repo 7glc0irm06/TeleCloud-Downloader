@@ -104,6 +104,11 @@ import telebot.apihelper as apihelper
 apihelper.API_URL = "http://localhost:8081/bot{0}/{1}"
 apihelper.FILE_URL = "http://localhost:8081"
 bot = telebot.TeleBot(TOKEN, parse_mode=None)
+# Set explicit timeouts for all short API calls (edit, send_message, etc.).
+# Large-file uploads override this per-call via timeout=upload_timeout in
+# uploaders/telegram_upload.py, so these values only affect small payloads.
+apihelper.CONNECT_TIMEOUT = 10   # TCP connection phase
+apihelper.READ_TIMEOUT    = 60   # max time to wait for Telegram's HTTP response
 pending_queue  = []
 queue_lock     = threading.Lock()
 

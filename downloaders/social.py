@@ -7,7 +7,7 @@ import yt_dlp
 import db
 from config import bot, DOWNLOAD_DIR, ADMIN_ID
 from cookies import active_cookies_file
-from utils import check_disk_space, get_free_space, cleanup_path, build_rich_progress_card, friendly_error
+from utils import check_disk_space, get_free_space, cleanup_path, build_rich_progress_card, friendly_error, safe_tg_call
 from uploaders.smart_dest import smart_dest
 
 def _cancel_markup(cid=None):
@@ -67,7 +67,7 @@ def ytdlp_universal(task):
             actual_title = d.get('info_dict', {}).get('title', f"{domain} Media")
             task['actual_title'] = actual_title
             card = build_rich_progress_card("⬇️", actual_title, pct_f, pct, total, speed, eta, domain, quality_label, cid=cid)
-            try: bot.edit_message_text(card, chat_id, msg.message_id, reply_markup=_cancel_markup(cid))
+            try: safe_tg_call(bot.edit_message_text, card, chat_id, msg.message_id, reply_markup=_cancel_markup(cid))
             except Exception: pass
             last_upd[0] = time.time()
 
@@ -129,7 +129,7 @@ def ytdlp_universal(task):
                 fp    = files[-1] if files else None
             if not fp: raise Exception(t(cid, 'file_not_found_err'))
 
-        try: bot.edit_message_text(t(cid, 'social_upload_preparing'), chat_id, msg.message_id)
+        try: safe_tg_call(bot.edit_message_text, t(cid, 'social_upload_preparing'), chat_id, msg.message_id)
         except Exception: pass
 
         final_title = task.get('actual_title', f"{domain} Media")
@@ -149,10 +149,9 @@ def ytdlp_universal(task):
         err = str(e)
         cancel_kw = t(cid, 'social_cancelled')
         if cancel_kw in err or t(cid, 'cancelled_keyword') in err:
-            try: bot.edit_message_text(t(cid, 'download_cancelled'), chat_id, msg.message_id)
+            try: safe_tg_call(bot.edit_message_text, t(cid, 'download_cancelled'), chat_id, msg.message_id)
             except Exception: pass
         else:
             text = f"❌ {friendly_error(err, cid=cid)}"
-            try: bot.edit_message_text(text, chat_id, msg.message_id)
-            except Exception: bot.send_message(chat_id, text)
-            bot.send_message(chat_id, f"DEBUG ERROR:\n{err[:500]}")
+            try: safe_tg_call(bot.edit_message_text, text, chat_id, msg.message_id)
+            except Exception: safe_tg_call(bot.send_message, chat_id, text)

@@ -1,8 +1,12 @@
 import os
 import re
+import time
 import glob
 import shutil
+import logging
 from urllib.parse import urlparse, urlencode, parse_qs, urlunparse
+
+_tg_call_log = logging.getLogger(__name__)
 
 from config import DOWNLOAD_DIR
 
@@ -162,3 +166,56 @@ def friendly_error(err: str, get_free_space_fn=None, cid=None) -> str:
     short = str(err)[:200] if len(str(err)) > 200 else str(err)
     return (_t(cid, 'err_technical', err=short) if cid else
             f"⚙️ خطای فنی:\n{short}")
+
+
+# =============================================================
+# Telegram API safe-call wrapper — handles FloodWait (429)
+# =============================================================
+def safe_tg_call(fn, *args, retries: int = 5, **kwargs):
+    """
+    Call any pyTelegramBotAPI function safely.
+
+    On a 429 FloodWait response Telegram tells us exactly how long to wait
+    in the error message ("Retry After X").  We honour that, sleep, and retry
+    up to `retries` times before giving up silently.
+
+    All other ApiTelegramException errors (e.g. message not modified, chat not
+    found) are re-raised immediately so the caller's own except-blocks can
+    react (or suppress) them as before.
+
+    Non-API exceptions (network, disk, etc.) are also re-raised unchanged.
+
+    Usage — replace:
+        bot.edit_message_text(text, chat_id, mid)
+    with:
+        safe_tg_call(bot.edit_message_text, text, chat_id, mid)
+    """
+    from telebot.apihelper import ApiTelegramException
+
+    for attempt in range(retries + 1):
+        try:
+            return fn(*args, **kwargs)
+
+        except ApiTelegramException as exc:
+            # 429 Too Many Requests — honour the Retry-After header
+            if exc.error_code == 429 or "retry after" in str(exc).lower():
+                m = re.search(r'retry after (\d+)', str(exc), re.IGNORECASE)
+                wait = int(m.group(1)) if m else 30
+                wait += 1   # add 1-second buffer
+                _tg_call_log.warning(
+                    "FloodWait: sleeping %ds before retry %d/%d for %s",
+                    wait, attempt + 1, retries, fn.__name__,
+                )
+                time.sleep(wait)
+                continue   # retry
+
+            # Any other Telegram API error (message not modified, etc.)
+            # → re-raise so the caller decides what to do
+            raise
+
+    # All retries exhausted — log and return None instead of crashing
+    _tg_call_log.error(
+        "safe_tg_call: gave up after %d FloodWait retries for %s",
+        retries, fn.__name__,
+    )
+    return None
