@@ -254,7 +254,13 @@ def handle_incoming_files(message):
         if state == 'await_cookie_file' or 'cookie' in fname.lower():
             try:
                 info = bot.get_file(message.document.file_id)
-                data = bot.download_file(info.file_path)
+                _fp  = info.file_path
+                if _fp.startswith('/'):
+                    # Local Bot API server returns an absolute filesystem path.
+                    # Read it directly from disk instead of constructing a URL.
+                    data = Path(_fp).read_bytes()
+                else:
+                    data = bot.download_file(_fp)
                 base = os.path.splitext(fname)[0].lower()
                 base = re.sub(r'[^a-zA-Z0-9_\-]', '_', base)
                 if base in ('cookies', 'cookie', 'cookies_txt', ''):
