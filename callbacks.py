@@ -165,12 +165,18 @@ def callback_query(call):
 
         elif action == "upload":
             if cid in config.tg_upload_mode:
+                # TG → GD
                 config.tg_upload_mode.discard(cid)
                 config.gd_upload_mode.add(cid)
-            else:
+                toast = t(cid, 'dest_gdrive_toast')
+            elif cid in config.gd_upload_mode:
+                # GD → Ask (remove from both sets)
                 config.gd_upload_mode.discard(cid)
+                toast = t(cid, 'upload_ask_toast')
+            else:
+                # Ask → TG
                 config.tg_upload_mode.add(cid)
-            toast = t(cid, 'upload_set_toast')
+                toast = t(cid, 'dest_tg_toast')
 
         elif action == "qual":
             # Context-aware: audio mode → audio quality, video mode → video quality
@@ -790,7 +796,7 @@ def _handle_cookie_callback(call, cid, data):
     elif action == "select":
         name   = parts[2]
         status = (t(cid, 'cookie_status_active')
-                  if (is_cookie_enabled(name) and cookie_exists(name))
+                  if (is_cookie_enabled(name, cid) and cookie_exists(name, cid))
                   else t(cid, 'cookie_status_inactive'))
         bot.answer_callback_query(call.id)
         try:
@@ -802,7 +808,7 @@ def _handle_cookie_callback(call, cid, data):
             pass
     elif action == "enable":
         name = parts[2]
-        set_cookie_enabled(name, True)
+        set_cookie_enabled(name, True, cid)
         bot.answer_callback_query(call.id, t(cid, 'cookie_enabled_toast', name=name))
         try:
             bot.edit_message_text(
@@ -813,7 +819,7 @@ def _handle_cookie_callback(call, cid, data):
             pass
     elif action == "disable":
         name = parts[2]
-        set_cookie_enabled(name, False)
+        set_cookie_enabled(name, False, cid)
         bot.answer_callback_query(call.id, t(cid, 'cookie_disabled_toast', name=name))
         try:
             bot.edit_message_text(
@@ -824,7 +830,7 @@ def _handle_cookie_callback(call, cid, data):
             pass
     elif action == "delete":
         name = parts[2]
-        delete_cookie(name)
+        delete_cookie(name, cid)
         bot.answer_callback_query(call.id, t(cid, 'cookie_deleted_toast', name=name))
         try:
             bot.edit_message_text(t(cid, 'cookie_manage'), cid, call.message.message_id,
@@ -875,9 +881,20 @@ def _handle_gdrive_settings(call, cid: int) -> None:
       • The step-by-step Colab setup instructions (if no config yet), or
       • A "connected" status panel with a Disconnect button.
     Always sent as a new message so it can't clash with the settings markup.
+    For the Admin, always show "System Default (connected)" — they use the
+    global rclone.conf and should never be prompted to reconnect.
     """
     from pathlib import Path
-    from config import USER_CONFIGS_DIR, COLAB_URL
+    from config import USER_CONFIGS_DIR, COLAB_URL, ADMIN_ID
+
+    # ── Admin always shows "connected via system default" ────────────────
+    if cid == ADMIN_ID:
+        bot.send_message(
+            cid,
+            t(cid, 'gdrive_status_connected'),
+            parse_mode='HTML',
+        )
+        return
 
     conf_path = Path(USER_CONFIGS_DIR) / f"rclone_{cid}.conf"
 

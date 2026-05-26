@@ -8,7 +8,11 @@ from pathlib import Path
 
 def _gdrive_button_label(cid) -> str:
     """Return the Drive connect/connected button label based on whether
-    the user already has a personal rclone config on disk."""
+    the user already has a personal rclone config on disk.
+    Admin always shows 'System Default' (uses the global rclone.conf)."""
+    from config import ADMIN_ID
+    if cid == ADMIN_ID:
+        return t(cid, 'btn_gdrive_connected_system')
     if cid and Path(USER_CONFIGS_DIR, f"rclone_{cid}.conf").exists():
         return t(cid, 'btn_gdrive_connected')
     return t(cid, 'btn_gdrive_connect') if cid else "☁️ اتصال گوگل درایو"
@@ -69,9 +73,18 @@ def settings_inline_markup(cid=None):
     # ── Section B: Toggle / Cycle settings (2-column grid) ────
     audio_mode = is_audio_mode(cid) if cid else False
     tg_mode    = cid in config.tg_upload_mode if cid else False
+    gd_mode    = cid in config.gd_upload_mode if cid else False
 
     media_label   = (get_audio_mode_label(cid)  if cid else "🎬 Media: Video")
-    upload_label  = (t(cid, 'btn_upload_tg') if tg_mode else t(cid, 'btn_upload_gd')) if cid else "☁️ Upload: Drive"
+    if cid:
+        if tg_mode:
+            upload_label = t(cid, 'btn_upload_tg')
+        elif gd_mode:
+            upload_label = t(cid, 'btn_upload_gd')
+        else:
+            upload_label = t(cid, 'btn_upload_ask')
+    else:
+        upload_label = "☁️ Upload: Drive"
 
     if cid:
         if audio_mode:
@@ -119,7 +132,7 @@ def cancel_markup(cid=None):
 
 
 def cookie_list_markup(cid=None):
-    cookies = list_cookies()
+    cookies = list_cookies(cid)
     markup  = types.InlineKeyboardMarkup(row_width=1)
     if not cookies:
         markup.add(types.InlineKeyboardButton(
@@ -145,7 +158,7 @@ def cookie_list_markup(cid=None):
 
 
 def cookie_item_markup(name: str, cid=None):
-    enabled = is_cookie_enabled(name)
+    enabled = is_cookie_enabled(name, cid)
     markup  = types.InlineKeyboardMarkup(row_width=2)
     if enabled:
         markup.add(types.InlineKeyboardButton(

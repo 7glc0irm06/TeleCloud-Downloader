@@ -240,6 +240,14 @@ STRINGS = {
         'fa': "☁️ آپلود: درایو",
         'en': "☁️ Upload: Drive",
     },
+    'btn_upload_ask': {
+        'fa': "☁️/📱 آپلود: پرسیدن",
+        'en': "☁️/📱 Upload: Ask",
+    },
+    'upload_ask_toast': {
+        'fa': "❓ مقصد هر بار پرسیده می‌شود.",
+        'en': "❓ Destination will be asked each time.",
+    },
     'btn_help': {
         'fa': "ℹ️ راهنما",
         'en': "ℹ️ Help",
@@ -440,6 +448,34 @@ STRINGS = {
         'en': "Send the download link:",
     },
 
+    # ── Help ──────────────────────────────────────────────────────────
+    'help_text': {
+        'fa': (
+            "📖 راهنما:\n\n"
+            "🔽 yt-dlp: یوتیوب، اینستاگرام، توییتر، ساوندکلاد و هر سایت پشتیبانی‌شده\n"
+            "🧲 تورنت: لینک magnet (با health check و timeout 20min)\n"
+            "🌐 لینک مستقیم: GitHub، F-Droid، ...\n"
+            "🍪 کوکی: چند کوکی مجزا (ذخیره جداگانه برای هر کاربر)\n"
+            "📎 فایل: آپلود مستقیم به درایو\n\n"
+            "☁️/📱 تاگل آپلود (۳ حالت):\n"
+            "  📱 تلگرام ← ☁️ گوگل درایو ← ❓ پرسیدن هر بار\n"
+            "🎯 کیفیت: کیفیت پیش‌فرض رو تنظیم کن (دستی = هر بار میپرسه)\n"
+            "⚠️ تورنت بدون پیشرفت در 20 دقیقه لغو میشه"
+        ),
+        'en': (
+            "📖 Help:\n\n"
+            "🔽 yt-dlp: YouTube, Instagram, Twitter, SoundCloud, and any supported site\n"
+            "🧲 Torrent: magnet link (with health check and 20min timeout)\n"
+            "🌐 Direct link: GitHub, F-Droid, ...\n"
+            "🍪 Cookie: multiple separate cookies (stored per-user for privacy)\n"
+            "📎 File: upload directly to Drive\n\n"
+            "☁️/📱 Upload toggle (3 modes):\n"
+            "  📱 Telegram → ☁️ Google Drive → ❓ Ask Every Time\n"
+            "🎯 Quality: set default quality (manual = asks every time)\n"
+            "⚠️ Torrent with no progress in 20 minutes will be cancelled"
+        ),
+    },
+
     # ── Queue status ───────────────────────────────────────────
     'queue_running': {
         'fa': "▶️ در حال اجرا:\n{type} | {title}\n",
@@ -534,32 +570,6 @@ STRINGS = {
     'audio_off': {
         'fa': "🎬 حالت ویدیو فعال شد.",
         'en': "🎬 Video mode activated.",
-    },
-
-    # ── Help ───────────────────────────────────────────────────
-    'help_text': {
-        'fa': (
-            "📖 راهنما:\n\n"
-            "🔽 yt-dlp: یوتیوب، اینستاگرام، توییتر، ساوندکلاد و هر سایت پشتیبانی‌شده\n"
-            "🧲 تورنت: لینک magnet (با health check و timeout 20min)\n"
-            "🌐 لینک مستقیم: GitHub، F-Droid، ...\n"
-            "🍪 کوکی: چند کوکی با نام مجزا\n"
-            "📎 فایل: آپلود مستقیم به درایو\n\n"
-            "☁️/📱 تاگل: مقصد پیش‌فرض رو تغییر بده\n"
-            "🎯 کیفیت: کیفیت پیش‌فرض رو تنظیم کن (دستی = هر بار میپرسه)\n"
-            "⚠️ تورنت بدون پیشرفت در 20 دقیقه لغو میشه"
-        ),
-        'en': (
-            "📖 Help:\n\n"
-            "🔽 yt-dlp: YouTube, Instagram, Twitter, SoundCloud, and any supported site\n"
-            "🧲 Torrent: magnet link (with health check and 20min timeout)\n"
-            "🌐 Direct link: GitHub, F-Droid, ...\n"
-            "🍪 Cookie: multiple cookies with separate names\n"
-            "📎 File: upload directly to Drive\n\n"
-            "☁️/📱 Toggle: change the default destination\n"
-            "🎯 Quality: set default quality (manual = asks every time)\n"
-            "⚠️ Torrent with no progress in 20 minutes will be cancelled"
-        ),
     },
 
     # ── Link handling ──────────────────────────────────────────
@@ -1266,6 +1276,42 @@ STRINGS = {
     'gdrive_disconnected_msg': {
         'fa': "🔌 اتصال گوگل درایو قطع شد.\n\nبرای اتصال مجدد از منوی تنظیمات استفاده کنید.",
         'en': "🔌 Google Drive disconnected.\n\nUse the Settings menu to reconnect.",
+    },
+
+    # ── User profile dashboard ────────────────────────────────
+    'btn_profile': {
+        'fa': "👤 پروفایل من",
+        'en': "👤 My Profile",
+    },
+    'profile_stats': {
+        'fa': (
+            "📊 آمار امروز شما:\n"
+            "📥 دانلودها: {files}/{max_files}\n"
+            "💾 حجم مصرفی: {used_gb:.2f}/{max_gb:.2f} GB"
+        ),
+        'en': (
+            "📊 Your stats today:\n"
+            "📥 Downloads: {files}/{max_files}\n"
+            "💾 Data used: {used_gb:.2f}/{max_gb:.2f} GB"
+        ),
+    },
+    'admin_profile_stats': {
+        'fa': (
+            "📊 آمار سیستم (ادمین)\n\n"
+            "👥 کاربران تأیید‌شده: {total_approved}\n"
+            "📥 کل دانلودها: {total_files}\n"
+            "💾 کل حجم دانلود: {total_gb:.2f} GB"
+        ),
+        'en': (
+            "📊 System Stats (Admin)\n\n"
+            "👥 Approved users: {total_approved}\n"
+            "📥 Total downloads: {total_files}\n"
+            "💾 Total data downloaded: {total_gb:.2f} GB"
+        ),
+    },
+    'btn_gdrive_connected_system': {
+        'fa': "✅ درایو: پیش‌فرض سیستم",
+        'en': "✅ Drive: System Default",
     },
 }
 

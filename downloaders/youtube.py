@@ -25,9 +25,9 @@ def _cancel_markup(cid=None):
     return m
 
 
-def get_format_sizes(url: str) -> dict:
+def get_format_sizes(url: str, cid=None) -> dict:
     sizes = {}
-    cf    = active_cookies_file(url)
+    cf    = active_cookies_file(url, cid)
     opts  = {
         'quiet': True,
         'skip_download': True,
@@ -151,7 +151,7 @@ def _build_ydl_opts(task: dict, folder: str, hook) -> dict:
 
     ydl_opts.update(subtitle_opts)
 
-    cf = active_cookies_file(task.get('url', ''))
+    cf = active_cookies_file(task.get('url', ''), cid)
     if cf:
         ydl_opts['cookiefile'] = cf
 
@@ -308,7 +308,7 @@ def process_playlist_download(task):
 
     msg = bot.send_message(chat_id, t(cid, 'fetching_playlist'), reply_markup=_cancel_markup(cid))
     task['_msg_id'] = msg.message_id  # lets cancel_task find this task by its progress message
-    cf  = active_cookies_file(url)
+    cf  = active_cookies_file(url, cid)
 
     try:
         entries, pl_title = fetch_playlist_entries(url, cf)

@@ -26,67 +26,98 @@ def _save_cookies_state(state: dict):
         json.dump(state, f, ensure_ascii=False, indent=2)
 
 # =============================================================
-# Cookie operations
+# Per-user cookie key helpers
 # =============================================================
-def get_cookie_path(name: str) -> str:
-    return os.path.join(COOKIES_DIR, f"{name}.txt")
+# Cookie files are stored as  <COOKIES_DIR>/<cid>_<name>.txt
+# State JSON keys are          "<cid>:<name>"
+# This ensures complete per-user isolation: no user can read,
+# enable, disable, or accidentally overwrite another user's cookies.
 
-def cookie_exists(name: str) -> bool:
-    p = get_cookie_path(name)
+def _file_key(cid, name: str) -> str:
+    """Return the filename stem used for on-disk storage: '{cid}_{name}'."""
+    return f"{cid}_{name}" if cid is not None else name
+
+def _state_key(cid, name: str) -> str:
+    """Return the key used inside cookies_enabled.json: '{cid}:{name}'."""
+    return f"{cid}:{name}" if cid is not None else name
+
+# =============================================================
+# Cookie operations  (all accept an optional cid)
+# =============================================================
+
+def get_cookie_path(name: str, cid=None) -> str:
+    return os.path.join(COOKIES_DIR, f"{_file_key(cid, name)}.txt")
+
+def cookie_exists(name: str, cid=None) -> bool:
+    p = get_cookie_path(name, cid)
     return os.path.exists(p) and os.path.getsize(p) > 0
 
-def is_cookie_enabled(name: str) -> bool:
-    return _cookies_state().get(name, True)
+def is_cookie_enabled(name: str, cid=None) -> bool:
+    return _cookies_state().get(_state_key(cid, name), True)
 
-def set_cookie_enabled(name: str, val: bool):
+def set_cookie_enabled(name: str, val: bool, cid=None):
     with _cookie_lock:
         state = _cookies_state()
-        state[name] = val
+        state[_state_key(cid, name)] = val
         _save_cookies_state(state)
 
-def delete_cookie(name: str):
-    p = get_cookie_path(name)
+def delete_cookie(name: str, cid=None):
+    p = get_cookie_path(name, cid)
     if os.path.exists(p):
         os.remove(p)
     with _cookie_lock:
         state = _cookies_state()
-        state.pop(name, None)
+        state.pop(_state_key(cid, name), None)
         _save_cookies_state(state)
 
-def save_cookie_data(name: str, data: bytes):
-    with open(get_cookie_path(name), 'wb') as f:
+def save_cookie_data(name: str, data: bytes, cid=None):
+    with open(get_cookie_path(name, cid), 'wb') as f:
         f.write(data)
     with _cookie_lock:
         state = _cookies_state()
-        state[name] = True
+        state[_state_key(cid, name)] = True
         _save_cookies_state(state)
 
-def list_cookies() -> list:
+def list_cookies(cid=None) -> list:
+    """List cookies belonging to the given user (or all cookies if cid is None)."""
     state  = _cookies_state()
     result = []
+    prefix = f"{cid}_" if cid is not None else ""
     for fname in sorted(os.listdir(COOKIES_DIR)):
         if not fname.endswith('.txt'):
             continue
-        name    = fname[:-4]
-        path    = get_cookie_path(name)
-        enabled = state.get(name, True)
+        stem = fname[:-4]  # strip .txt
+        if cid is not None:
+            # Only include this user's cookies
+            if not stem.startswith(prefix):
+                continue
+            name = stem[len(prefix):]
+        else:
+            name = stem
+        path    = os.path.join(COOKIES_DIR, fname)
+        enabled = state.get(_state_key(cid, name), True)
         size    = os.path.getsize(path)
         result.append({'name': name, 'path': path, 'enabled': enabled, 'size': size})
     return result
 
-def active_cookies_file(url: str = '') -> str:
-    """Return the appropriate cookie file for the given URL."""
+def active_cookies_file(url: str = '', cid=None) -> str:
+    """Return the appropriate cookie file for the given URL and user (cid).
+
+    Cookie lookup is strictly per-user: only files belonging to *cid* are
+    considered.  Pass cid=None only in legacy/admin contexts where isolation
+    is not required (falls back to the old flat-name behaviour).
+    """
     if url:
         try:
             domain  = urlparse(url).netloc.lower()
-            domain  = re.sub(r'^www\.', '', domain).split('.')[0]
+            domain  = re.sub(r'^www\\.', '', domain).split('.')[0]
             aliases = {'x': ['x', 'twitter'], 'twitter': ['twitter', 'x']}
             checks  = aliases.get(domain, [domain])
             for name in checks:
-                if cookie_exists(name) and is_cookie_enabled(name):
-                    return get_cookie_path(name)
+                if cookie_exists(name, cid) and is_cookie_enabled(name, cid):
+                    return get_cookie_path(name, cid)
         except Exception:
             pass
-    if cookie_exists('default') and is_cookie_enabled('default'):
-        return get_cookie_path('default')
+    if cookie_exists('default', cid) and is_cookie_enabled('default', cid):
+        return get_cookie_path('default', cid)
     return None

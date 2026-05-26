@@ -278,3 +278,35 @@ def record_download_bytes(user_id: int, file_size_bytes: int) -> None:
         (file_size_bytes, user_id),
     )
     conn.commit()
+
+
+# ──────────────────────────────────────────────────────────────
+# Global system stats — admin dashboard only
+# ──────────────────────────────────────────────────────────────
+
+def get_global_stats() -> dict:
+    """
+    Return aggregated system-wide statistics for the admin profile view.
+
+    Returns a dict with keys:
+        total_approved  – number of rows where is_approved=1
+        total_files     – SUM(files_downloaded) across all users
+        total_bytes     – SUM(bytes_downloaded) across all users
+    """
+    conn = _get_conn()
+    row = conn.execute(
+        """
+        SELECT
+            COUNT(CASE WHEN is_approved = 1 THEN 1 END) AS total_approved,
+            COALESCE(SUM(files_downloaded), 0)           AS total_files,
+            COALESCE(SUM(bytes_downloaded), 0)           AS total_bytes
+        FROM users
+        """
+    ).fetchone()
+    if row is None:
+        return {'total_approved': 0, 'total_files': 0, 'total_bytes': 0}
+    return {
+        'total_approved': row['total_approved'],
+        'total_files':    row['total_files'],
+        'total_bytes':    row['total_bytes'],
+    }

@@ -75,7 +75,7 @@ def ytdlp_universal(task):
 
     folder = os.path.join(DOWNLOAD_DIR, domain)
     os.makedirs(folder, exist_ok=True)
-    cf = active_cookies_file(url)
+    cf = active_cookies_file(url, cid)
 
     # ── Build postprocessors dynamically ──────────────────────
     postprocessors = []

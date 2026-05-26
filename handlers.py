@@ -15,8 +15,7 @@ from config import (bot, cache_lock, url_cache,
 
 import db
 from cookies import (active_cookies_file, save_cookie_data,
-                     cookie_exists, is_cookie_enabled,
-                     get_cookie_path, _cookies_state, _save_cookies_state)
+                     cookie_exists, is_cookie_enabled, get_cookie_path)
 from utils import clean_url, get_free_space, fmt_size, friendly_error
 from menu import main_menu_markup, cookie_list_markup, cancel_markup
 from dest_helpers import (get_dest, should_ask_dest, get_quality,
@@ -264,7 +263,7 @@ def handle_incoming_files(message):
                     user_state[cid] = 'await_cookie_name'
                     bot.reply_to(message, t(cid, 'cookie_received_ask_name'))
                 else:
-                    save_cookie_data(base, data)
+                    save_cookie_data(base, data, cid)
                     user_state[cid] = None
                     bot.reply_to(message, t(cid, 'cookie_saved', name=base),
                                  reply_markup=main_menu_markup(cid))
@@ -440,10 +439,13 @@ def handle_text(message):
             bot.send_message(cid, t(cid, 'cookie_invalid_name'))
             return
         try:
-            os.rename(get_cookie_path(old_name), get_cookie_path(new_name))
-            st = _cookies_state()
-            st[new_name] = st.pop(old_name, True)
-            _save_cookies_state(st)
+            os.rename(get_cookie_path(old_name, cid), get_cookie_path(new_name, cid))
+            from cookies import (_cookie_lock as _ck_lock, _cookies_state as _ck_state,
+                                 _save_cookies_state as _ck_save, _state_key as _ck_key)
+            with _ck_lock:
+                st = _ck_state()
+                st[_ck_key(cid, new_name)] = st.pop(_ck_key(cid, old_name), True)
+                _ck_save(st)
             user_state[cid] = None
             bot.send_message(cid, t(cid, 'cookie_rename_done', new_name=new_name),
                              reply_markup=main_menu_markup(cid))
@@ -459,7 +461,7 @@ def handle_text(message):
         with cache_lock:
             pending = url_cache.get((cid, 'pending_cookie'))
         if pending:
-            save_cookie_data(name, pending if isinstance(pending, bytes) else pending.encode('utf-8'))
+            save_cookie_data(name, pending if isinstance(pending, bytes) else pending.encode('utf-8'), cid)
             with cache_lock:
                 url_cache.pop((cid, 'pending_cookie'), None)
             user_state[cid] = None
@@ -640,7 +642,7 @@ def _handle_youtube_link(message, cid, text):
     with cache_lock:
         url_cache[key] = text
     opts = {'extract_flat': True, 'quiet': True, 'js_runtimes': {'node': {}}}
-    cf   = active_cookies_file(text)
+    cf   = active_cookies_file(text, cid)
     if cf:
         opts['cookiefile'] = cf
     try:
@@ -736,7 +738,7 @@ def _handle_youtube_link(message, cid, text):
 
             else:
                 bot.edit_message_text(t(cid, 'fetching_quality'), cid, msg.message_id)
-                sizes = get_format_sizes(text)
+                sizes = get_format_sizes(text, cid)
 
                 def sz(k):
                     b = sizes.get(k, 0)
@@ -929,7 +931,7 @@ def _handle_social_link(message, cid, text):
         return
 
     def fetch_social_formats():
-        cf   = active_cookies_file(text)
+        cf   = active_cookies_file(text, cid)
         # Bug 4a: dynamically decide noplaylist based on the URL structure.
         # SoundCloud /sets/ URLs are playlists and must not be truncated to 1 track.
         opts = {'quiet': True, 'skip_download': True, 'noplaylist': _url_is_playlist(text), 'js_runtimes': {'node': {}}}
@@ -1053,9 +1055,25 @@ def _handle_playlist_count(cid, text, state):
 # Profile stats helper
 # =============================================================
 def _send_profile_stats(cid: int) -> None:
-    """Send the user their daily usage stats from the DB."""
-    from config import MAX_DAILY_FILES, MAX_DAILY_BYTES
+    """Send the user their daily usage stats from the DB.
+    Admin gets global system-wide stats instead of a personal quota view.
+    """
+    from config import MAX_DAILY_FILES, MAX_DAILY_BYTES, ADMIN_ID
 
+    # ── Admin: show global system stats ────────────────────────
+    if cid == ADMIN_ID:
+        stats = db.get_global_stats()
+        total_gb = stats['total_bytes'] / (1024 ** 3)
+        bot.send_message(
+            cid,
+            t(cid, 'admin_profile_stats',
+              total_approved=stats['total_approved'],
+              total_files=stats['total_files'],
+              total_gb=total_gb),
+        )
+        return
+
+    # ── Regular user: show personal daily quota ─────────────────
     row = db.get_user(cid)
     if row is None:
         # Edge case: user not in DB yet (shouldn't happen after /start but be safe)
