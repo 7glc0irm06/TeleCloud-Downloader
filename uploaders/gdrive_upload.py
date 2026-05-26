@@ -134,7 +134,6 @@ def upload_to_gdrive_cancellable(
     user_id: int | None = None,
 ):
     from locales import t
-    import config
 
     if task_info is None:
         task_info = {}
@@ -175,9 +174,6 @@ def upload_to_gdrive_cancellable(
     # ───────────────────────────────────────────────────────────────────────
 
     # ── FIX: only pass --drive-root-folder-id for admin (system config) ────
-    # For regular users, root_folder_id is already set inside their personal
-    # rclone config, so overriding it here would point them to the admin's
-    # Drive folder which they have no access to → upload error.
     from config import ADMIN_ID
     is_admin = str(uid) == str(ADMIN_ID)
     root_folder_args = ["--drive-root-folder-id", DRIVE_FOLDER_ID] if is_admin else []
@@ -197,16 +193,32 @@ def upload_to_gdrive_cancellable(
         "--progress",
     ] + root_folder_args + config_args
 
-    config.rclone_process = subprocess.Popen(
+    # ── Thread-safe: proc is stack-local; no global state is touched ────────
+    # Each concurrent invocation of this function owns its own Popen object.
+    # Threads can never alias or overwrite each other's process reference.
+    proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, encoding='utf-8', errors='replace')
+
+    # Grab the per-task stop event once, outside the loop, for efficiency.
+    # task_info['_stop'] is injected by downloader_queue before dispatch.
+    task_stop_event = task_info.get('_stop')
 
     last_update = time.time()
 
     while True:
-        if stop_event.is_set():
-            config.rclone_process.terminate()
-            config.rclone_process = None
+        # ── Dual cancellation check ─────────────────────────────────────────
+        # Condition 1: global stop_event → bot is shutting down entirely.
+        # Condition 2: task_stop_event  → user clicked "Cancel" for THIS task.
+        # Both terminate only the LOCAL proc, so sibling uploads are unaffected.
+        cancelled = stop_event.is_set() or (
+            task_stop_event is not None and task_stop_event.is_set()
+        )
+        if cancelled:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
             cleanup_path(path)
             try:
                 bot.edit_message_text(
@@ -214,9 +226,10 @@ def upload_to_gdrive_cancellable(
             except Exception:
                 pass
             return
+        # ───────────────────────────────────────────────────────────────────
 
-        line = config.rclone_process.stdout.readline()
-        if not line and config.rclone_process.poll() is not None:
+        line = proc.stdout.readline()
+        if not line and proc.poll() is not None:
             break
 
         if time.time() - last_update > 4:
@@ -243,8 +256,7 @@ def upload_to_gdrive_cancellable(
                     pass
                 last_update = time.time()
 
-    ret = config.rclone_process.wait()
-    config.rclone_process = None
+    ret = proc.wait()
     cleanup_path(path)
 
     name = os.path.basename(path)
