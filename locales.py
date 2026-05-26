@@ -1217,6 +1217,10 @@ STRINGS = {
         'fa': "⛔ غیرفعال",
         'en': "⛔ Disabled",
     },
+    'admin_user_status_admin': {
+        'fa': "👑 ادمین",
+        'en': "👑 Admin",
+    },
     'admin_user_detail': {
         'fa': (
             "🛡 مدیریت کاربر\n"

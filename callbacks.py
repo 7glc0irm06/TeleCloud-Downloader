@@ -859,15 +859,18 @@ def render_admin_users_list(chat_id: int, page: int = 1, query: str | None = Non
         for row in rows:
             _backfill_identity_if_missing(row)
             fresh_row = db.get_user(row["user_id"]) or row
-            uid = row["user_id"]
+            uid = fresh_row["user_id"]
             if uid == ADMIN_ID and not fresh_row["is_approved"]:
                 db.approve_user(uid)
                 fresh_row = db.get_user(uid) or fresh_row
-            approved = (
-                t(chat_id, 'admin_user_status_enabled')
-                if fresh_row["is_approved"] else
-                t(chat_id, 'admin_user_status_disabled')
-            )
+            if uid == ADMIN_ID:
+                approved = t(chat_id, 'admin_user_status_admin')
+            else:
+                approved = (
+                    t(chat_id, 'admin_user_status_enabled')
+                    if fresh_row["is_approved"] else
+                    t(chat_id, 'admin_user_status_disabled')
+                )
             uname = f"@{fresh_row['username']}" if fresh_row["username"] else "-"
             dname = fresh_row["display_name"] or "-"
             lines.append(

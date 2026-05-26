@@ -191,6 +191,7 @@ def list_all_signed_users(page: int, per_page: int, query: str | None = None) ->
     per_page = max(1, min(per_page, 50))
     offset = (page - 1) * per_page
     where_sql, params = _user_search_where(query)
+    from config import ADMIN_ID
     conn = _get_conn()
     return conn.execute(
         f"""
@@ -201,10 +202,12 @@ def list_all_signed_users(page: int, per_page: int, query: str | None = None) ->
             username, display_name
         FROM users
         WHERE {where_sql}
-        ORDER BY user_id DESC
+        ORDER BY
+            CASE WHEN user_id = ? THEN 0 ELSE 1 END,
+            user_id DESC
         LIMIT ? OFFSET ?
         """,
-        [*params, per_page, offset],
+        [*params, ADMIN_ID, per_page, offset],
     ).fetchall()
 
 
