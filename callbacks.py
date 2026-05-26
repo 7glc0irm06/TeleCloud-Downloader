@@ -803,6 +803,36 @@ def _aum_get_ctx(cid: int, token: str) -> dict:
     return {"page": 1, "query": None}
 
 
+def _chat_display_name(chat_obj) -> str:
+    first = getattr(chat_obj, "first_name", "") or ""
+    last = getattr(chat_obj, "last_name", "") or ""
+    name = (first + " " + last).strip()
+    if name:
+        return name
+    return getattr(chat_obj, "title", "") or ""
+
+
+def _backfill_identity_if_missing(user_row) -> None:
+    """
+    Best-effort identity backfill for legacy rows that predate username/display_name fields.
+    This is intentionally silent on failure.
+    """
+    if not user_row:
+        return
+    if user_row["username"] and user_row["display_name"]:
+        return
+    uid = user_row["user_id"]
+    try:
+        chat = bot.get_chat(uid)
+        db.touch_user_identity(
+            uid,
+            getattr(chat, "username", None),
+            _chat_display_name(chat),
+        )
+    except Exception:
+        pass
+
+
 def _fmt_quota_gb(bytes_value: int | None) -> str:
     if bytes_value is None:
         return "-"
@@ -827,10 +857,16 @@ def render_admin_users_list(chat_id: int, page: int = 1, query: str | None = Non
         lines.append(t(chat_id, 'admin_users_empty'))
     else:
         for row in rows:
+            _backfill_identity_if_missing(row)
+            fresh_row = db.get_user(row["user_id"]) or row
             uid = row["user_id"]
-            approved = t(chat_id, 'admin_user_status_enabled') if row["is_approved"] else t(chat_id, 'admin_user_status_disabled')
-            uname = f"@{row['username']}" if row["username"] else "-"
-            dname = row["display_name"] or "-"
+            approved = (
+                t(chat_id, 'admin_user_status_enabled')
+                if fresh_row["is_approved"] else
+                t(chat_id, 'admin_user_status_disabled')
+            )
+            uname = f"@{fresh_row['username']}" if fresh_row["username"] else "-"
+            dname = fresh_row["display_name"] or "-"
             lines.append(
                 t(
                     chat_id,
@@ -883,6 +919,8 @@ def render_admin_user_detail(
     confirm_disable: bool = False,
 ) -> None:
     row = db.get_user(user_id)
+    _backfill_identity_if_missing(row)
+    row = db.get_user(user_id) or row
     if row is None:
         bot.send_message(chat_id, t(chat_id, 'admin_user_not_found', user_id=user_id))
         return
