@@ -528,10 +528,13 @@ def _handle_menu(cid, text, message) -> bool:
 
     if text in (t(cid, 'btn_cancel'), "❌ لغو عملیات فعلی", "❌ Cancel Current Task"):
         with config.current_tasks_lock:
-            my_task = config.current_tasks.get(cid)
-        if my_task or config.rclone_process:
-            if my_task:
-                my_task['_stop'].set()
+            # Collect all tasks that belong to this user (multiple possible
+            # if MAX_CONCURRENT_DOWNLOADS > 1 and this user queued several).
+            my_tasks = [tk for tk in config.current_tasks.values()
+                        if tk.get('chat_id') == cid]
+        if my_tasks or config.rclone_process:
+            for tk in my_tasks:
+                tk['_stop'].set()
             if config.rclone_process:
                 config.stop_event.set()  # rclone checks the global event
                 try:

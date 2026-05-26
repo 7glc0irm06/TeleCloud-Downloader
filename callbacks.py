@@ -283,8 +283,16 @@ def callback_query(call):
 
     # ── Cancel ────────────────────────────────────────────
     if data == "cancel_task":
+        # call.message.message_id is the progress message the cancel button lives on.
+        # Each downloader stamps task['_msg_id'] after sending that message, so this
+        # O(n) scan (n ≤ MAX_CONCURRENT_DOWNLOADS) resolves to exactly the right task.
+        _target_mid = call.message.message_id
         with config.current_tasks_lock:
-            my_task = config.current_tasks.get(cid)
+            my_task = next(
+                (t for t in config.current_tasks.values()
+                 if t.get('_msg_id') == _target_mid),
+                None,
+            )
         if my_task:
             my_task['_stop'].set()
             bot.answer_callback_query(call.id, t(cid, 'cancel_requested'))

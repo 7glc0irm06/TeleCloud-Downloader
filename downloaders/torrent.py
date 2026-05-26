@@ -61,6 +61,7 @@ def process_torrent_download(task):
         return
 
     msg    = bot.send_message(chat_id, t(cid, 'torrent_checking'), reply_markup=_cancel_markup(cid))
+    task['_msg_id'] = msg.message_id  # lets cancel_task find this task by its progress message
     health = check_torrent_health(task['url'])
     sd, lc = health["seeders"], health["leechers"]
     sz_str = fmt_size(health["size"]) if health["size"] else t(cid, 'torrent_size_unknown')

@@ -61,6 +61,7 @@ def process_direct_download(task):
 
     url = task['url']
     msg = bot.send_message(chat_id, t(cid, 'direct_preparing'), reply_markup=_cancel_markup(cid))
+    task['_msg_id'] = msg.message_id  # lets cancel_task find this task by its progress message
     fp  = None
 
     try:

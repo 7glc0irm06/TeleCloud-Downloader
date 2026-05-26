@@ -32,9 +32,14 @@ def _run_task(task: dict) -> None:
     cid     = task.get('chat_id')
     retries = task.get('_retries', 0)
 
-    # Register as the active task for this user
+    # Use the task object's identity as a unique key.
+    # id(task) is stable for the entire lifetime of this call because
+    # _run_task holds a reference on its stack, preventing GC/reuse.
+    _task_id = id(task)
+
+    # Register as an active task so status queries and cancellation can find it
     with config.current_tasks_lock:
-        config.current_tasks[cid] = task
+        config.current_tasks[_task_id] = task
 
     try:
         _dispatch(task)
@@ -88,7 +93,7 @@ def _run_task(task: dict) -> None:
     finally:
         # Always deregister, even if the task was retried
         with config.current_tasks_lock:
-            config.current_tasks.pop(cid, None)
+            config.current_tasks.pop(_task_id, None)
 
 
 # =============================================================

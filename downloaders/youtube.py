@@ -203,6 +203,7 @@ def process_youtube_download(task):
         quality_label = 'video'
 
     msg      = bot.send_message(chat_id, t(cid, 'connecting_youtube'), reply_markup=_cancel_markup(cid))
+    task['_msg_id'] = msg.message_id  # lets cancel_task find this task by its progress message
     last_upd = [time.time()]
 
     def my_hook(d):
@@ -303,6 +304,7 @@ def process_playlist_download(task):
         return
 
     msg = bot.send_message(chat_id, t(cid, 'fetching_playlist'), reply_markup=_cancel_markup(cid))
+    task['_msg_id'] = msg.message_id  # lets cancel_task find this task by its progress message
     cf  = active_cookies_file(url)
 
     try:

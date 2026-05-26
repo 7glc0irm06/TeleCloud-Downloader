@@ -53,6 +53,7 @@ def ytdlp_universal(task):
     quality_label = f"🎵 {audio_codec.upper() if audio_codec != 'default' else 'MP3'}" if audio_only else 'video'
 
     msg      = bot.send_message(chat_id, t(cid, 'social_preparing', domain=domain), reply_markup=_cancel_markup(cid))
+    task['_msg_id'] = msg.message_id  # lets cancel_task find this task by its progress message
     last_upd = [time.time()]
 
     def hook(d):
