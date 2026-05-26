@@ -5,6 +5,8 @@ import time
 import subprocess
 
 from config import bot, cache_lock, url_cache, DOWNLOAD_DIR
+from config import ADMIN_ID
+import db
 from utils import fmt_size, build_rich_progress_card, cleanup_path, friendly_error, safe_tg_call
 from uploaders.smart_dest import smart_dest
 
@@ -100,6 +102,7 @@ def _do_torrent_download(task, msg):
     cid     = chat_id
     dest    = task.get('dest') or ('tg' if chat_id in tg_upload_mode else 'gd')
     TIMEOUT = 20 * 60
+    task['_active_path'] = None
 
     for old in glob.glob(os.path.join(DOWNLOAD_DIR, "*.aria2")):
         try:
@@ -221,8 +224,21 @@ def _do_torrent_download(task, msg):
             raise Exception(t(cid, 'torrent_file_not_found'))
 
         newest    = entries[0]
+        task['_active_path'] = newest
         base_name = os.path.splitext(os.path.basename(newest))[0][:40]
         is_folder = os.path.isdir(newest)
+
+        if cid != ADMIN_ID:
+            if is_folder:
+                real_size = 0
+                for root, _, files in os.walk(newest):
+                    for name in files:
+                        fpath = os.path.join(root, name)
+                        if os.path.isfile(fpath):
+                            real_size += os.path.getsize(fpath)
+            else:
+                real_size = os.path.getsize(newest) if os.path.isfile(newest) else 0
+            db.record_download_bytes(cid, real_size)
 
         try:
             safe_tg_call(bot.edit_message_text, t(cid, 'torrent_preparing_upload'), chat_id, msg.message_id)
@@ -234,6 +250,7 @@ def _do_torrent_download(task, msg):
             'source':  'Torrent',
             'quality': '',
             'user_id': chat_id,
+            '_stop': task.get('_stop'),
         }
 
         if is_folder:

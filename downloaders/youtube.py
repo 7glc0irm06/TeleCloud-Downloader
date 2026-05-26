@@ -225,6 +225,7 @@ def process_youtube_download(task):
     safe_title = re.sub(r'[\\/*?:"<>|]', '_', title_kw)[:50]
     folder     = os.path.join(DOWNLOAD_DIR, safe_title)
     os.makedirs(folder, exist_ok=True)
+    task['_active_path'] = folder
 
     ydl_opts  = _build_ydl_opts(task, folder, my_hook)
     file_path = None
@@ -264,6 +265,8 @@ def process_youtube_download(task):
             'source':   'YouTube',
             'quality':  quality_label,
             'extra_msg': subtitle_warning,  # appended by smart_dest / upload completion
+            '_stop': task.get('_stop'),
+            'user_id': cid,
         }
         smart_dest(file_path, msg, dest, folder_name=safe_title, task_info=task_info)
         cleanup_path(folder)
@@ -329,6 +332,7 @@ def process_playlist_download(task):
 
     folder    = os.path.join(DOWNLOAD_DIR, pl_title)
     os.makedirs(folder, exist_ok=True)
+    task['_active_path'] = folder
     completed    = [0]
     errors       = [0]
     lock         = threading.Lock()
@@ -344,7 +348,12 @@ def process_playlist_download(task):
     else:
         quality_label = 'video'
 
-    task_info_base = {'source': 'YouTube Playlist', 'quality': quality_label}
+    task_info_base = {
+        'source': 'YouTube Playlist',
+        'quality': quality_label,
+        '_stop': task.get('_stop'),
+        'user_id': cid,
+    }
 
     def process_one(entry, idx):
         # Bug 3 fix: no semaphore needed — the ThreadPoolExecutor's max_workers

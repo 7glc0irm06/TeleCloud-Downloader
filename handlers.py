@@ -71,12 +71,73 @@ YT_LABELS = {
 _pending_join_requests: set = set()
 
 
+def _display_name_from_user(user) -> str:
+    return ((user.first_name or '') + ' ' + (user.last_name or '')).strip() or ''
+
+
+def _iter_task_paths(task: dict) -> list[str]:
+    paths = []
+    main_path = task.get('_active_path')
+    if isinstance(main_path, str) and main_path:
+        paths.append(main_path)
+    extra = task.get('_active_paths') or []
+    if isinstance(extra, list):
+        for item in extra:
+            if isinstance(item, str) and item:
+                paths.append(item)
+    deduped = []
+    seen = set()
+    for p in paths:
+        if p in seen:
+            continue
+        seen.add(p)
+        deduped.append(p)
+    return deduped
+
+
+def disable_user_and_stop_tasks(user_id: int) -> int:
+    """
+    Soft-disable user access and stop active tasks.
+    Returns number of active tasks signaled.
+    """
+    from utils import cleanup_path
+
+    db.reject_user(user_id)
+    with config.queue_lock:
+        config.pending_queue[:] = [
+            task for task in config.pending_queue
+            if task.get('chat_id') != user_id
+        ]
+    stopped = 0
+    with config.current_tasks_lock:
+        user_tasks = [
+            task for task in config.current_tasks.values()
+            if task.get('chat_id') == user_id
+        ]
+    for task in user_tasks:
+        stop_event = task.get('_stop')
+        if stop_event is not None:
+            try:
+                stop_event.set()
+                stopped += 1
+            except Exception:
+                pass
+        for path in _iter_task_paths(task):
+            cleanup_path(path)
+    return stopped
+
+
 # =============================================================
 # /start
 # =============================================================
 @bot.message_handler(commands=['start'])
 def start(message):
     cid = message.chat.id
+    db.touch_user_identity(
+        cid,
+        message.from_user.username,
+        _display_name_from_user(message.from_user),
+    )
 
     # Language picker first
     if not has_lang(cid):
@@ -158,8 +219,24 @@ def cmd_deluser(message):
     except ValueError:
         bot.reply_to(message, t(cid, 'admin_deluser_usage'))
         return
-    db.delete_user(uid)
+    if uid == ADMIN_ID:
+        bot.reply_to(message, t(cid, 'admin_user_self_blocked'))
+        return
+    disable_user_and_stop_tasks(uid)
     bot.reply_to(message, t(cid, 'admin_deluser_done', user_id=uid))
+
+
+# =============================================================
+# Admin command: /users
+# =============================================================
+@bot.message_handler(commands=['users'])
+def cmd_users(message):
+    cid = message.chat.id
+    if cid != ADMIN_ID:
+        bot.reply_to(message, t(cid, 'admin_only'))
+        return
+    from callbacks import render_admin_users_list
+    render_admin_users_list(chat_id=cid, page=1, query=None, message_id=None)
 
 
 # =============================================================
@@ -235,6 +312,11 @@ def cmd_broadcast(message):
 def handle_incoming_files(message):
     cid   = message.chat.id
     state = user_state.get(cid)
+    db.touch_user_identity(
+        cid,
+        message.from_user.username,
+        _display_name_from_user(message.from_user),
+    )
 
     if cid != ADMIN_ID and not db.is_approved(cid):
         bot.reply_to(message, t(cid, 'not_approved'))
@@ -476,6 +558,11 @@ def handle_text(message):
     cid   = message.chat.id
     text  = message.text.strip() if message.text else ""
     state = user_state.get(cid)
+    db.touch_user_identity(
+        cid,
+        message.from_user.username,
+        _display_name_from_user(message.from_user),
+    )
 
     # Auth gate (admins bypass, approved users pass, others are blocked)
     if cid != ADMIN_ID and not db.is_approved(cid):
@@ -534,6 +621,18 @@ def handle_text(message):
 
     if isinstance(state, str) and state.startswith('await_playlist_count|'):
         _handle_playlist_count(cid, text, state)
+        return
+
+    if cid == ADMIN_ID and state == 'await_admin_user_search':
+        user_state[cid] = None
+        from callbacks import render_admin_users_list
+        query = text.strip()
+        render_admin_users_list(
+            chat_id=cid,
+            page=1,
+            query=query if query else None,
+            message_id=None,
+        )
         return
 
     if _handle_menu(cid, text, message):
@@ -678,6 +777,7 @@ def _build_help_text(cid: int) -> str:
                 "/adduser <id>\n"
                 "/deluser <id>\n"
                 "/setquota <id> <files> <GB>\n"
+                "/users\n"
                 "/togglereg\n"
                 "/broadcast <message>"
             )
@@ -706,6 +806,7 @@ def _build_help_text(cid: int) -> str:
             "/adduser <id>\n"
             "/deluser <id>\n"
             "/setquota <id> <files> <GB>\n"
+            "/users\n"
             "/togglereg\n"
             "/broadcast <message>"
         )

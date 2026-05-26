@@ -75,6 +75,7 @@ def ytdlp_universal(task):
 
     folder = os.path.join(DOWNLOAD_DIR, domain)
     os.makedirs(folder, exist_ok=True)
+    task['_active_path'] = folder
     cf = active_cookies_file(url, cid)
 
     # ── Build postprocessors dynamically ──────────────────────
@@ -142,7 +143,13 @@ def ytdlp_universal(task):
         except Exception: pass
 
         final_title = task.get('actual_title', f"{domain} Media")
-        task_info = {'title': final_title, 'source': domain, 'quality': quality_label}
+        task_info = {
+            'title': final_title,
+            'source': domain,
+            'quality': quality_label,
+            '_stop': task.get('_stop'),
+            'user_id': cid,
+        }
 
         # ── Byte quota accounting ──────────────────────────────
         if cid != ADMIN_ID:

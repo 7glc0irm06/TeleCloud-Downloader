@@ -26,8 +26,9 @@ def _configure_bot_commands():
 
     admin_commands = [
         types.BotCommand('adduser', 'Approve user: /adduser <id>'),
-        types.BotCommand('deluser', 'Remove user: /deluser <id>'),
+        types.BotCommand('deluser', 'Disable user: /deluser <id>'),
         types.BotCommand('setquota', 'Set quota: /setquota <id> <files> <GB>'),
+        types.BotCommand('users', 'Manage users panel: /users'),
         types.BotCommand('togglereg', 'Toggle self-registration'),
         types.BotCommand('broadcast', 'Broadcast: /broadcast <message>'),
     ]

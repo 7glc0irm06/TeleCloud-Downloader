@@ -1,38 +1,20 @@
 """
-db.py — SQLite-backed User Management for TeleCloud-Downloader (multi-tenant).
-
-Schema
-------
-users(
-    user_id          INTEGER PRIMARY KEY,
-    is_approved      INTEGER  NOT NULL DEFAULT 0,   -- 0 = False, 1 = True
-    files_downloaded INTEGER  NOT NULL DEFAULT 0,
-    bytes_downloaded INTEGER  NOT NULL DEFAULT 0,
-    last_active_date TEXT,                           -- 'YYYY-MM-DD'; NULL = never active
-    custom_quota_files INTEGER,                      -- NULL → use global MAX_DAILY_FILES
-    custom_quota_bytes INTEGER,                      -- NULL → use global MAX_DAILY_BYTES
-    default_quality  TEXT     NOT NULL DEFAULT '720',
-    audio_mode       INTEGER  NOT NULL DEFAULT 0    -- 0 = False, 1 = True
-)
+db.py - SQLite-backed User Management for TeleCloud-Downloader.
 """
 
+import re
 import sqlite3
 import threading
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-# ──────────────────────────────────────────────────────────────
-# Database path — stored alongside the bot's config area so it
-# survives Docker volume mounts exactly like user_configs.
-# ──────────────────────────────────────────────────────────────
 DB_PATH = "/app/user_configs/telecloud.db"
 
-_local = threading.local()       # Per-thread connection
-_db_lock = threading.Lock()      # Used only for DDL (CREATE TABLE)
+_local = threading.local()
+_db_lock = threading.Lock()
 
 
 def _get_conn() -> sqlite3.Connection:
-    """Return a thread-local SQLite connection (auto-created on first use)."""
     if not hasattr(_local, "conn") or _local.conn is None:
         conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         conn.row_factory = sqlite3.Row
@@ -42,33 +24,74 @@ def _get_conn() -> sqlite3.Connection:
     return _local.conn
 
 
+def _ensure_users_columns(conn: sqlite3.Connection) -> None:
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
+    if "username" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN username TEXT")
+    if "display_name" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
+
+
 def init_db() -> None:
-    """Create tables if they don't already exist. Call once at startup."""
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     with _db_lock:
         conn = _get_conn()
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS users (
-                user_id          INTEGER PRIMARY KEY,
-                is_approved      INTEGER  NOT NULL DEFAULT 0,
-                files_downloaded INTEGER  NOT NULL DEFAULT 0,
-                bytes_downloaded INTEGER  NOT NULL DEFAULT 0,
-                last_active_date TEXT,
+                user_id            INTEGER PRIMARY KEY,
+                is_approved        INTEGER NOT NULL DEFAULT 0,
+                files_downloaded   INTEGER NOT NULL DEFAULT 0,
+                bytes_downloaded   INTEGER NOT NULL DEFAULT 0,
+                last_active_date   TEXT,
                 custom_quota_files INTEGER,
                 custom_quota_bytes INTEGER,
-                default_quality  TEXT    NOT NULL DEFAULT '720',
-                audio_mode       INTEGER  NOT NULL DEFAULT 0
+                default_quality    TEXT    NOT NULL DEFAULT '720',
+                audio_mode         INTEGER NOT NULL DEFAULT 0
             )
-        """)
+            """
+        )
+        _ensure_users_columns(conn)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS download_events (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id          INTEGER NOT NULL,
+                bytes_downloaded INTEGER NOT NULL,
+                created_at       TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_download_events_user_created "
+            "ON download_events(user_id, created_at)"
+        )
         conn.commit()
 
 
-# ──────────────────────────────────────────────────────────────
+def _normalize_username(username: str | None) -> str | None:
+    if not username:
+        return None
+    value = username.strip().lstrip("@").lower()
+    return value or None
+
+
+def _normalize_display_name(display_name: str | None) -> str | None:
+    if not display_name:
+        return None
+    value = re.sub(r"\s+", " ", display_name).strip()
+    return value or None
+
+
+def _now_utc_sql() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
+# ---------------------------------------------------------------------
 # CRUD helpers
-# ──────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------
 
 def add_user(user_id: int, approved: bool = False) -> None:
-    """Insert a new user (no-op if already exists)."""
     conn = _get_conn()
     conn.execute(
         "INSERT OR IGNORE INTO users (user_id, is_approved) VALUES (?, ?)",
@@ -77,8 +100,21 @@ def add_user(user_id: int, approved: bool = False) -> None:
     conn.commit()
 
 
+def touch_user_identity(user_id: int, username: str | None, display_name: str | None) -> None:
+    uname = _normalize_username(username)
+    dname = _normalize_display_name(display_name)
+    conn = _get_conn()
+    conn.execute(
+        "INSERT INTO users (user_id, username, display_name) VALUES (?, ?, ?) "
+        "ON CONFLICT(user_id) DO UPDATE SET "
+        "username=COALESCE(excluded.username, users.username), "
+        "display_name=COALESCE(excluded.display_name, users.display_name)",
+        (user_id, uname, dname),
+    )
+    conn.commit()
+
+
 def approve_user(user_id: int) -> None:
-    """Mark a user as approved (creates row if missing)."""
     conn = _get_conn()
     conn.execute(
         "INSERT INTO users (user_id, is_approved) VALUES (?, 1) "
@@ -89,7 +125,6 @@ def approve_user(user_id: int) -> None:
 
 
 def reject_user(user_id: int) -> None:
-    """Mark a user as NOT approved (creates row if missing)."""
     conn = _get_conn()
     conn.execute(
         "INSERT INTO users (user_id, is_approved) VALUES (?, 0) "
@@ -99,42 +134,85 @@ def reject_user(user_id: int) -> None:
     conn.commit()
 
 
+def set_user_approved(user_id: int, approved: bool) -> None:
+    if approved:
+        approve_user(user_id)
+    else:
+        reject_user(user_id)
+
+
 def delete_user(user_id: int) -> None:
-    """Completely remove a user from the database."""
     conn = _get_conn()
     conn.execute("DELETE FROM users WHERE user_id=?", (user_id,))
     conn.commit()
 
 
 def get_user(user_id: int) -> sqlite3.Row | None:
-    """Return the users row for *user_id*, or None if not found."""
     conn = _get_conn()
-    return conn.execute(
-        "SELECT * FROM users WHERE user_id=?", (user_id,)
-    ).fetchone()
+    return conn.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
 
 
 def is_approved(user_id: int) -> bool:
-    """Return True if the user exists and is_approved == 1."""
     row = get_user(user_id)
     return bool(row and row["is_approved"])
 
 
 def get_all_approved_users() -> list[int]:
-    """Return a list of user_ids for all approved users."""
     conn = _get_conn()
-    rows = conn.execute(
-        "SELECT user_id FROM users WHERE is_approved=1"
-    ).fetchall()
+    rows = conn.execute("SELECT user_id FROM users WHERE is_approved=1").fetchall()
     return [r["user_id"] for r in rows]
 
 
-# ──────────────────────────────────────────────────────────────
-# Quota / VIP helpers
-# ──────────────────────────────────────────────────────────────
+def _user_search_where(query: str | None) -> tuple[str, list]:
+    if not query:
+        return "1=1", []
+    q = query.strip()
+    if not q:
+        return "1=1", []
+    if q.isdigit():
+        return "user_id = ?", [int(q)]
+    q = q.lstrip("@").lower()
+    like = f"%{q}%"
+    return (
+        "(LOWER(COALESCE(username,'')) LIKE ? OR LOWER(COALESCE(display_name,'')) LIKE ?)",
+        [like, like],
+    )
+
+
+def count_all_signed_users(query: str | None = None) -> int:
+    where_sql, params = _user_search_where(query)
+    conn = _get_conn()
+    row = conn.execute(f"SELECT COUNT(*) AS c FROM users WHERE {where_sql}", params).fetchone()
+    return int(row["c"] if row else 0)
+
+
+def list_all_signed_users(page: int, per_page: int, query: str | None = None) -> list[sqlite3.Row]:
+    page = max(page, 1)
+    per_page = max(1, min(per_page, 50))
+    offset = (page - 1) * per_page
+    where_sql, params = _user_search_where(query)
+    conn = _get_conn()
+    return conn.execute(
+        f"""
+        SELECT
+            user_id, is_approved,
+            files_downloaded, bytes_downloaded, last_active_date,
+            custom_quota_files, custom_quota_bytes,
+            username, display_name
+        FROM users
+        WHERE {where_sql}
+        ORDER BY user_id DESC
+        LIMIT ? OFFSET ?
+        """,
+        [*params, per_page, offset],
+    ).fetchall()
+
+
+# ---------------------------------------------------------------------
+# Quota helpers
+# ---------------------------------------------------------------------
 
 def set_custom_quota(user_id: int, files: int | None, bytes_: int | None) -> None:
-    """Set per-user (VIP) quota. Pass None to clear a custom limit."""
     conn = _get_conn()
     conn.execute(
         "INSERT INTO users (user_id, custom_quota_files, custom_quota_bytes) VALUES (?, ?, ?) "
@@ -145,14 +223,48 @@ def set_custom_quota(user_id: int, files: int | None, bytes_: int | None) -> Non
     conn.commit()
 
 
-# ──────────────────────────────────────────────────────────────
+def get_effective_quota_bytes(user_id: int) -> int:
+    from config import MAX_DAILY_BYTES
+
+    row = get_user(user_id)
+    if not row:
+        return int(MAX_DAILY_BYTES)
+    return int(row["custom_quota_bytes"]) if row["custom_quota_bytes"] is not None else int(MAX_DAILY_BYTES)
+
+
+def adjust_user_usage_count(user_id: int, delta: int) -> int:
+    conn = _get_conn()
+    today = date.today().isoformat()
+    conn.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
+    conn.execute(
+        "UPDATE users SET files_downloaded=MAX(files_downloaded + ?, 0), last_active_date=? WHERE user_id=?",
+        (int(delta), today, user_id),
+    )
+    conn.commit()
+    row = conn.execute("SELECT files_downloaded FROM users WHERE user_id=?", (user_id,)).fetchone()
+    return int(row["files_downloaded"] if row else 0)
+
+
+def adjust_user_quota_bytes(user_id: int, delta_bytes: int) -> int:
+    from config import MAX_DAILY_BYTES
+
+    conn = _get_conn()
+    conn.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
+    row = conn.execute("SELECT custom_quota_bytes FROM users WHERE user_id=?", (user_id,)).fetchone()
+    base = int(row["custom_quota_bytes"]) if row and row["custom_quota_bytes"] is not None else int(MAX_DAILY_BYTES)
+    new_bytes = max(0, base + int(delta_bytes))
+    conn.execute("UPDATE users SET custom_quota_bytes=? WHERE user_id=?", (new_bytes, user_id))
+    conn.commit()
+    return new_bytes
+
+
+# ---------------------------------------------------------------------
 # Settings helpers
-# ──────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------
 
 def update_setting(user_id: int, key: str, value) -> None:
-    """Update a single column on the users row (key must be a valid column name)."""
-    _ALLOWED = {"default_quality", "audio_mode"}
-    if key not in _ALLOWED:
+    allowed = {"default_quality", "audio_mode"}
+    if key not in allowed:
         raise ValueError(f"update_setting: unknown key '{key}'")
     conn = _get_conn()
     conn.execute(
@@ -163,113 +275,78 @@ def update_setting(user_id: int, key: str, value) -> None:
     conn.commit()
 
 
-# ──────────────────────────────────────────────────────────────
-# Quota gate — called before every download
-# ──────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------
+# Quota gate
+# ---------------------------------------------------------------------
 
-def check_and_update_quota(
-    user_id: int,
-    file_size_bytes: int,
-) -> tuple[bool, str]:
-    """
-    Check whether *user_id* is within their daily quota.
+def check_and_update_quota(user_id: int, file_size_bytes: int) -> tuple[bool, str]:
+    from config import MAX_DAILY_FILES, MAX_DAILY_BYTES
 
-    Behaviour
-    ---------
-    • If ``current_date > last_active_date``, counters reset automatically
-      (daily quota renewal).
-    • If the user is not yet in the DB, they are inserted with 0 counters.
-    • Limits are read from the users row first (custom VIP quota) and fall
-      back to ``config.MAX_DAILY_FILES`` / ``config.MAX_DAILY_BYTES``.
-
-    Returns
-    -------
-    (allowed: bool, reason: str)
-        *allowed* is True when the download may proceed.
-        *reason* is an empty string on success, or a Persian error message.
-    """
-    from config import MAX_DAILY_FILES, MAX_DAILY_BYTES  # avoid circular at module load
-
-    today_str = date.today().isoformat()      # 'YYYY-MM-DD'
+    today_str = date.today().isoformat()
     conn = _get_conn()
 
-    row = conn.execute(
-        "SELECT * FROM users WHERE user_id=?", (user_id,)
-    ).fetchone()
-
+    row = conn.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
     if row is None:
-        # New user — insert bare row then re-fetch
-        conn.execute(
-            "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,)
-        )
+        conn.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
         conn.commit()
-        row = conn.execute(
-            "SELECT * FROM users WHERE user_id=?", (user_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
 
-    # ── Daily reset ───────────────────────────────────────────
     last_date = row["last_active_date"] or ""
     if last_date != today_str:
         conn.execute(
-            "UPDATE users SET files_downloaded=0, bytes_downloaded=0, "
-            "last_active_date=? WHERE user_id=?",
+            "UPDATE users SET files_downloaded=0, bytes_downloaded=0, last_active_date=? WHERE user_id=?",
             (today_str, user_id),
         )
         conn.commit()
-        # Re-read fresh counters (now 0)
-        row = conn.execute(
-            "SELECT * FROM users WHERE user_id=?", (user_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
 
-    # ── Resolve limits ────────────────────────────────────────
     max_files = row["custom_quota_files"] if row["custom_quota_files"] is not None else MAX_DAILY_FILES
     max_bytes = row["custom_quota_bytes"] if row["custom_quota_bytes"] is not None else MAX_DAILY_BYTES
 
     files_used = row["files_downloaded"]
     bytes_used = row["bytes_downloaded"]
 
-    # ── Gate checks ───────────────────────────────────────────
     if files_used >= max_files:
         return False, (
-            f"❌ سقف روزانه شما پر شده است.\n"
-            f"📥 دانلودها: {files_used}/{max_files}\n"
-            f"فردا دوباره امتحان کنید."
+            f"? ??? ?????? ??? ?? ??? ???.\n"
+            f"?? ????????: {files_used}/{max_files}\n"
+            f"???? ?????? ?????? ????."
         )
 
     if bytes_used + file_size_bytes > max_bytes:
-        from utils import fmt_size  # lazy import
+        from utils import fmt_size
+
         return False, (
-            f"❌ حجم دانلود روزانه شما تمام شده است.\n"
-            f"💾 مصرف: {fmt_size(bytes_used)} / {fmt_size(max_bytes)}\n"
-            f"فردا دوباره امتحان کنید."
+            f"? ??? ?????? ?????? ??? ???? ??? ???.\n"
+            f"?? ????: {fmt_size(bytes_used)} / {fmt_size(max_bytes)}\n"
+            f"???? ?????? ?????? ????."
         )
 
-    # ── Update counters ───────────────────────────────────────
     conn.execute(
         "UPDATE users SET files_downloaded=files_downloaded+1, "
-        "bytes_downloaded=bytes_downloaded+?, last_active_date=? "
-        "WHERE user_id=?",
+        "bytes_downloaded=bytes_downloaded+?, last_active_date=? WHERE user_id=?",
         (file_size_bytes, today_str, user_id),
     )
     conn.commit()
     return True, ""
 
 
-# ──────────────────────────────────────────────────────────────
-# Post-download byte accounting
-# ──────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------
+# Download accounting
+# ---------------------------------------------------------------------
+
+def record_download_event(user_id: int, file_size_bytes: int, created_at: str | None = None) -> None:
+    if file_size_bytes <= 0:
+        return
+    conn = _get_conn()
+    conn.execute(
+        "INSERT INTO download_events (user_id, bytes_downloaded, created_at) VALUES (?, ?, ?)",
+        (user_id, int(file_size_bytes), created_at or _now_utc_sql()),
+    )
+    conn.commit()
+
 
 def record_download_bytes(user_id: int, file_size_bytes: int) -> None:
-    """
-    Increment bytes_downloaded by the *actual* size of a completed file.
-
-    Called after a successful download once the file is on disk and its
-    real size is known via os.path.getsize().  Intentionally separate from
-    check_and_update_quota so the pre-download gate can run at enqueue time
-    (before the size is known) while byte accounting is still accurate.
-
-    No-op if user_id is not in the database (admin bypass path).
-    """
     if file_size_bytes <= 0:
         return
     conn = _get_conn()
@@ -278,21 +355,77 @@ def record_download_bytes(user_id: int, file_size_bytes: int) -> None:
         (file_size_bytes, user_id),
     )
     conn.commit()
+    record_download_event(user_id, file_size_bytes)
 
 
-# ──────────────────────────────────────────────────────────────
-# Global system stats — admin dashboard only
-# ──────────────────────────────────────────────────────────────
+def get_user_download_stats(user_id: int) -> dict:
+    now_local = datetime.now().astimezone()
+    day_start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start_local = day_start_local - timedelta(days=day_start_local.weekday())
+    month_start_local = day_start_local.replace(day=1)
+
+    def to_utc_sql(dt_local: datetime) -> str:
+        return dt_local.astimezone(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
+
+    day_start_utc = to_utc_sql(day_start_local)
+    week_start_utc = to_utc_sql(week_start_local)
+    month_start_utc = to_utc_sql(month_start_local)
+
+    conn = _get_conn()
+    row = conn.execute(
+        """
+        SELECT
+            SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS files_today,
+            SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS files_week,
+            SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS files_month,
+            COUNT(*)                                         AS files_all,
+            COALESCE(SUM(CASE WHEN created_at >= ? THEN bytes_downloaded ELSE 0 END), 0) AS bytes_today,
+            COALESCE(SUM(CASE WHEN created_at >= ? THEN bytes_downloaded ELSE 0 END), 0) AS bytes_week,
+            COALESCE(SUM(CASE WHEN created_at >= ? THEN bytes_downloaded ELSE 0 END), 0) AS bytes_month,
+            COALESCE(SUM(bytes_downloaded), 0)                                          AS bytes_all
+        FROM download_events
+        WHERE user_id=?
+        """,
+        (
+            day_start_utc,
+            week_start_utc,
+            month_start_utc,
+            day_start_utc,
+            week_start_utc,
+            month_start_utc,
+            user_id,
+        ),
+    ).fetchone()
+
+    if row is None:
+        return {
+            "files_today": 0,
+            "files_week": 0,
+            "files_month": 0,
+            "files_all": 0,
+            "bytes_today": 0,
+            "bytes_week": 0,
+            "bytes_month": 0,
+            "bytes_all": 0,
+        }
+
+    return {
+        "files_today": int(row["files_today"] or 0),
+        "files_week": int(row["files_week"] or 0),
+        "files_month": int(row["files_month"] or 0),
+        "files_all": int(row["files_all"] or 0),
+        "bytes_today": int(row["bytes_today"] or 0),
+        "bytes_week": int(row["bytes_week"] or 0),
+        "bytes_month": int(row["bytes_month"] or 0),
+        "bytes_all": int(row["bytes_all"] or 0),
+    }
+
+
+# ---------------------------------------------------------------------
+# Global stats
+# ---------------------------------------------------------------------
 
 def get_global_stats() -> dict:
-    """
-    Return aggregated system-wide statistics for the admin profile view.
-
-    Returns a dict with keys:
-        total_approved  – number of rows where is_approved=1
-        total_files     – SUM(files_downloaded) across all users
-        total_bytes     – SUM(bytes_downloaded) across all users
-    """
     conn = _get_conn()
     row = conn.execute(
         """
@@ -304,9 +437,9 @@ def get_global_stats() -> dict:
         """
     ).fetchone()
     if row is None:
-        return {'total_approved': 0, 'total_files': 0, 'total_bytes': 0}
+        return {"total_approved": 0, "total_files": 0, "total_bytes": 0}
     return {
-        'total_approved': row['total_approved'],
-        'total_files':    row['total_files'],
-        'total_bytes':    row['total_bytes'],
+        "total_approved": row["total_approved"],
+        "total_files": row["total_files"],
+        "total_bytes": row["total_bytes"],
     }

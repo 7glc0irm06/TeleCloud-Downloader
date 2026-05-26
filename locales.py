@@ -1122,8 +1122,8 @@ STRINGS = {
         'en': "❌ Usage: /deluser <user_id>",
     },
     'admin_deluser_done': {
-        'fa': "✅ کاربر {user_id} حذف شد.",
-        'en': "✅ User {user_id} deleted.",
+        'fa': "✅ کاربر {user_id} غیرفعال شد.",
+        'en': "✅ User {user_id} disabled.",
     },
     'admin_setquota_usage': {
         'fa': "❌ استفاده: /setquota <user_id> <files> <GB>",
@@ -1152,6 +1152,156 @@ STRINGS = {
     'admin_broadcast_done': {
         'fa': "✅ پیام به {count} کاربر ارسال شد.",
         'en': "✅ Message sent to {count} users.",
+    },
+    'admin_user_self_blocked': {
+        'fa': "⛔ این عمل برای ادمین اصلی مجاز نیست.",
+        'en': "⛔ This action is not allowed for the main admin.",
+    },
+    'admin_users_title': {
+        'fa': "👥 لیست کاربران ثبت‌شده\nصفحه {page}/{pages} • کل: {total}",
+        'en': "👥 Signed-Up Users\nPage {page}/{pages} • Total: {total}",
+    },
+    'admin_users_title_search': {
+        'fa': "🔎 نتایج جستجو: {query}\nصفحه {page}/{pages} • کل: {total}",
+        'en': "🔎 Search results: {query}\nPage {page}/{pages} • Total: {total}",
+    },
+    'admin_users_empty': {
+        'fa': "موردی پیدا نشد.",
+        'en': "No users found.",
+    },
+    'admin_users_row': {
+        'fa': "ID: {user_id} | {status}\nUsername: {username}\nName: {display_name}",
+        'en': "ID: {user_id} | {status}\nUsername: {username}\nName: {display_name}",
+    },
+    'admin_users_open_btn': {
+        'fa': "🔍 مدیریت کاربر {user_id}",
+        'en': "🔍 Manage user {user_id}",
+    },
+    'admin_users_prev_btn': {
+        'fa': "⬅️ قبلی",
+        'en': "⬅️ Prev",
+    },
+    'admin_users_next_btn': {
+        'fa': "بعدی ➡️",
+        'en': "Next ➡️",
+    },
+    'admin_users_search_btn': {
+        'fa': "🔎 جستجو",
+        'en': "🔎 Search",
+    },
+    'admin_users_clear_search_btn': {
+        'fa': "🧹 پاک‌کردن جستجو",
+        'en': "🧹 Clear Search",
+    },
+    'admin_users_search_prompt': {
+        'fa': "عبارت جستجو را بفرستید: ID عددی، @username یا نام نمایشی.",
+        'en': "Send search text: numeric ID, @username, or display name.",
+    },
+    'admin_users_search_cleared_toast': {
+        'fa': "✅ جستجو پاک شد.",
+        'en': "✅ Search cleared.",
+    },
+    'admin_users_bad_action': {
+        'fa': "❌ عملیات نامعتبر.",
+        'en': "❌ Invalid action.",
+    },
+    'admin_user_not_found': {
+        'fa': "❌ کاربر {user_id} پیدا نشد.",
+        'en': "❌ User {user_id} not found.",
+    },
+    'admin_user_status_enabled': {
+        'fa': "✅ فعال",
+        'en': "✅ Enabled",
+    },
+    'admin_user_status_disabled': {
+        'fa': "⛔ غیرفعال",
+        'en': "⛔ Disabled",
+    },
+    'admin_user_detail': {
+        'fa': (
+            "🛡 مدیریت کاربر\n"
+            "ID: {user_id}\n"
+            "وضعیت: {status}\n"
+            "Username: {username}\n"
+            "Name: {display_name}\n\n"
+            "📥 مصرف امروز: {files_today} فایل\n"
+            "💾 مصرف امروز: {used_gb:.2f} GB\n"
+            "🎯 سقف حجم: {quota_gb:.2f} GB\n\n"
+            "📊 آمار دانلود فایل:\n"
+            "امروز: {files_today_stats} | این هفته: {files_week} | این ماه: {files_month} | همه‌زمان: {files_all}\n"
+            "📊 آمار حجم (GB):\n"
+            "امروز: {bytes_today_stats_gb:.2f} | این هفته: {bytes_week_gb:.2f} | این ماه: {bytes_month_gb:.2f} | همه‌زمان: {bytes_all_gb:.2f}"
+        ),
+        'en': (
+            "🛡 User Management\n"
+            "ID: {user_id}\n"
+            "Status: {status}\n"
+            "Username: {username}\n"
+            "Name: {display_name}\n\n"
+            "📥 Used today: {files_today} files\n"
+            "💾 Used today: {used_gb:.2f} GB\n"
+            "🎯 Quota limit: {quota_gb:.2f} GB\n\n"
+            "📊 File download stats:\n"
+            "Today: {files_today_stats} | This week: {files_week} | This month: {files_month} | All time: {files_all}\n"
+            "📊 Volume stats (GB):\n"
+            "Today: {bytes_today_stats_gb:.2f} | This week: {bytes_week_gb:.2f} | This month: {bytes_month_gb:.2f} | All time: {bytes_all_gb:.2f}"
+        ),
+    },
+    'admin_user_disable_confirm': {
+        'fa': "⚠️ آیا از غیرفعال‌کردن این کاربر مطمئن هستید؟ دانلود فعال او قطع می‌شود.",
+        'en': "⚠️ Confirm disabling this user? Any active download will be stopped.",
+    },
+    'admin_user_usage_minus_btn': {
+        'fa': "➖ مصرف فایل",
+        'en': "➖ File Usage",
+    },
+    'admin_user_usage_plus_btn': {
+        'fa': "➕ مصرف فایل",
+        'en': "➕ File Usage",
+    },
+    'admin_user_quota_minus_btn': {
+        'fa': "➖ 0.5GB سقف",
+        'en': "➖ 0.5GB Quota",
+    },
+    'admin_user_quota_plus_btn': {
+        'fa': "➕ 0.5GB سقف",
+        'en': "➕ 0.5GB Quota",
+    },
+    'admin_user_enable_btn': {
+        'fa': "✅ فعال‌سازی",
+        'en': "✅ Enable",
+    },
+    'admin_user_disable_btn': {
+        'fa': "⛔ غیرفعال‌سازی",
+        'en': "⛔ Disable",
+    },
+    'admin_user_disable_yes_btn': {
+        'fa': "✅ بله، غیرفعال شود",
+        'en': "✅ Yes, Disable",
+    },
+    'admin_user_disable_no_btn': {
+        'fa': "↩️ انصراف",
+        'en': "↩️ Cancel",
+    },
+    'admin_user_back_btn': {
+        'fa': "🔙 بازگشت به لیست",
+        'en': "🔙 Back to List",
+    },
+    'admin_user_usage_updated_toast': {
+        'fa': "✅ مصرف فایل به‌روزرسانی شد.",
+        'en': "✅ File usage updated.",
+    },
+    'admin_user_quota_updated_toast': {
+        'fa': "✅ سقف حجم به‌روزرسانی شد.",
+        'en': "✅ Quota updated.",
+    },
+    'admin_user_enabled_toast': {
+        'fa': "✅ کاربر فعال شد.",
+        'en': "✅ User enabled.",
+    },
+    'admin_user_disabled_toast': {
+        'fa': "⛔ کاربر غیرفعال شد.",
+        'en': "⛔ User disabled.",
     },
 
     # ── Quota limit messages ──────────────────────────────────

@@ -2,6 +2,7 @@ import os
 from downloader_queue import enqueue
 import re
 import threading
+import time
 from telebot import types
 
 import config
@@ -141,6 +142,10 @@ def callback_query(call):
                     callback_data="joinreq|request",
                 ))
                 bot.send_message(cid, t(cid, 'registration_closed'), reply_markup=mk)
+        return
+
+    if data.startswith("aum|"):
+        _handle_admin_user_panel(call, cid, data)
         return
 
     if data.startswith("set|"):
@@ -774,6 +779,324 @@ def _handle_yt_dest(call, cid, data):
             cid, call.message.message_id)
     except Exception:
         pass
+    bot.answer_callback_query(call.id)
+
+
+# =============================================================
+# Admin user management panel
+# =============================================================
+def _aum_make_ctx(cid: int, page: int, query: str | None) -> str:
+    token = f"{int(time.time() * 1000) % 10_000_000_000}"
+    with cache_lock:
+        url_cache[("aum_ctx", cid, token)] = {
+            "page": int(page),
+            "query": query,
+        }
+    return token
+
+
+def _aum_get_ctx(cid: int, token: str) -> dict:
+    with cache_lock:
+        ctx = url_cache.get(("aum_ctx", cid, token))
+    if isinstance(ctx, dict):
+        return ctx
+    return {"page": 1, "query": None}
+
+
+def _fmt_quota_gb(bytes_value: int | None) -> str:
+    if bytes_value is None:
+        return "-"
+    return f"{(int(bytes_value) / (1024 ** 3)):.2f}"
+
+
+def render_admin_users_list(chat_id: int, page: int = 1, query: str | None = None, message_id: int | None = None) -> None:
+    per_page = 10
+    total = db.count_all_signed_users(query=query)
+    pages = max(1, (total + per_page - 1) // per_page)
+    page = max(1, min(page, pages))
+    rows = db.list_all_signed_users(page=page, per_page=per_page, query=query)
+    token = _aum_make_ctx(chat_id, page, query)
+
+    if query:
+        title = t(chat_id, 'admin_users_title_search', query=query, page=page, pages=pages, total=total)
+    else:
+        title = t(chat_id, 'admin_users_title', page=page, pages=pages, total=total)
+
+    lines = [title, ""]
+    if not rows:
+        lines.append(t(chat_id, 'admin_users_empty'))
+    else:
+        for row in rows:
+            uid = row["user_id"]
+            approved = t(chat_id, 'admin_user_status_enabled') if row["is_approved"] else t(chat_id, 'admin_user_status_disabled')
+            uname = f"@{row['username']}" if row["username"] else "-"
+            dname = row["display_name"] or "-"
+            lines.append(
+                t(
+                    chat_id,
+                    'admin_users_row',
+                    user_id=uid,
+                    status=approved,
+                    username=uname,
+                    display_name=dname,
+                )
+            )
+
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    for row in rows:
+        uid = row["user_id"]
+        markup.add(
+            types.InlineKeyboardButton(
+                t(chat_id, 'admin_users_open_btn', user_id=uid),
+                callback_data=f"aum|u|{uid}|{token}",
+            )
+        )
+
+    nav = []
+    if page > 1:
+        nav.append(types.InlineKeyboardButton(t(chat_id, 'admin_users_prev_btn'), callback_data=f"aum|p|{page-1}|{token}"))
+    if page < pages:
+        nav.append(types.InlineKeyboardButton(t(chat_id, 'admin_users_next_btn'), callback_data=f"aum|p|{page+1}|{token}"))
+    if nav:
+        markup.row(*nav)
+
+    markup.row(
+        types.InlineKeyboardButton(t(chat_id, 'admin_users_search_btn'), callback_data=f"aum|s|{token}"),
+        types.InlineKeyboardButton(t(chat_id, 'admin_users_clear_search_btn'), callback_data="aum|c"),
+    )
+
+    text = "\n".join(lines)
+    if message_id:
+        try:
+            bot.edit_message_text(text, chat_id, message_id, reply_markup=markup)
+            return
+        except Exception:
+            pass
+    bot.send_message(chat_id, text, reply_markup=markup)
+
+
+def render_admin_user_detail(
+    chat_id: int,
+    user_id: int,
+    ctx_token: str,
+    message_id: int | None = None,
+    confirm_disable: bool = False,
+) -> None:
+    row = db.get_user(user_id)
+    if row is None:
+        bot.send_message(chat_id, t(chat_id, 'admin_user_not_found', user_id=user_id))
+        return
+    stats = db.get_user_download_stats(user_id)
+    approved = t(chat_id, 'admin_user_status_enabled') if row["is_approved"] else t(chat_id, 'admin_user_status_disabled')
+    uname = f"@{row['username']}" if row["username"] else "-"
+    dname = row["display_name"] or "-"
+    files_today = int(row["files_downloaded"] or 0)
+    bytes_today = int(row["bytes_downloaded"] or 0)
+    quota_bytes = db.get_effective_quota_bytes(user_id)
+    gb_today = bytes_today / (1024 ** 3)
+    quota_gb = quota_bytes / (1024 ** 3)
+
+    text = t(
+        chat_id,
+        'admin_user_detail',
+        user_id=user_id,
+        status=approved,
+        username=uname,
+        display_name=dname,
+        files_today=files_today,
+        used_gb=gb_today,
+        quota_gb=quota_gb,
+        files_today_stats=stats["files_today"],
+        files_week=stats["files_week"],
+        files_month=stats["files_month"],
+        files_all=stats["files_all"],
+        bytes_today_stats_gb=stats["bytes_today"] / (1024 ** 3),
+        bytes_week_gb=stats["bytes_week"] / (1024 ** 3),
+        bytes_month_gb=stats["bytes_month"] / (1024 ** 3),
+        bytes_all_gb=stats["bytes_all"] / (1024 ** 3),
+    )
+    if confirm_disable:
+        text += "\n\n" + t(chat_id, 'admin_user_disable_confirm')
+
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.row(
+        types.InlineKeyboardButton(t(chat_id, 'admin_user_usage_minus_btn'), callback_data=f"aum|us|{user_id}|-1|{ctx_token}"),
+        types.InlineKeyboardButton(t(chat_id, 'admin_user_usage_plus_btn'), callback_data=f"aum|us|{user_id}|1|{ctx_token}"),
+    )
+    markup.row(
+        types.InlineKeyboardButton(t(chat_id, 'admin_user_quota_minus_btn'), callback_data=f"aum|qb|{user_id}|-1|{ctx_token}"),
+        types.InlineKeyboardButton(t(chat_id, 'admin_user_quota_plus_btn'), callback_data=f"aum|qb|{user_id}|1|{ctx_token}"),
+    )
+    if confirm_disable:
+        markup.row(
+            types.InlineKeyboardButton(t(chat_id, 'admin_user_disable_yes_btn'), callback_data=f"aum|dc|{user_id}|{ctx_token}"),
+            types.InlineKeyboardButton(t(chat_id, 'admin_user_disable_no_btn'), callback_data=f"aum|u|{user_id}|{ctx_token}"),
+        )
+    else:
+        markup.row(
+            types.InlineKeyboardButton(t(chat_id, 'admin_user_enable_btn'), callback_data=f"aum|en|{user_id}|{ctx_token}"),
+            types.InlineKeyboardButton(t(chat_id, 'admin_user_disable_btn'), callback_data=f"aum|da|{user_id}|{ctx_token}"),
+        )
+    markup.add(types.InlineKeyboardButton(t(chat_id, 'admin_user_back_btn'), callback_data=f"aum|b|{ctx_token}"))
+
+    if message_id:
+        try:
+            bot.edit_message_text(text, chat_id, message_id, reply_markup=markup)
+            return
+        except Exception:
+            pass
+    bot.send_message(chat_id, text, reply_markup=markup)
+
+
+def _handle_admin_user_panel(call, cid: int, data: str) -> None:
+    if cid != ADMIN_ID:
+        bot.answer_callback_query(call.id, t(cid, 'admin_only'), show_alert=True)
+        return
+    parts = data.split('|')
+    if len(parts) < 2:
+        bot.answer_callback_query(call.id)
+        return
+    action = parts[1]
+
+    try:
+        if action == "p" and len(parts) >= 4:
+            page = int(parts[2])
+            token = parts[3]
+            ctx = _aum_get_ctx(cid, token)
+            render_admin_users_list(
+                chat_id=cid,
+                page=page,
+                query=ctx.get("query"),
+                message_id=call.message.message_id,
+            )
+            bot.answer_callback_query(call.id)
+            return
+
+        if action == "b" and len(parts) >= 3:
+            token = parts[2]
+            ctx = _aum_get_ctx(cid, token)
+            render_admin_users_list(
+                chat_id=cid,
+                page=int(ctx.get("page") or 1),
+                query=ctx.get("query"),
+                message_id=call.message.message_id,
+            )
+            bot.answer_callback_query(call.id)
+            return
+
+        if action == "u" and len(parts) >= 4:
+            user_id = int(parts[2])
+            token = parts[3]
+            render_admin_user_detail(
+                chat_id=cid,
+                user_id=user_id,
+                ctx_token=token,
+                message_id=call.message.message_id,
+            )
+            bot.answer_callback_query(call.id)
+            return
+
+        if action == "us" and len(parts) >= 5:
+            user_id = int(parts[2])
+            delta = int(parts[3])
+            token = parts[4]
+            if user_id == ADMIN_ID:
+                bot.answer_callback_query(call.id, t(cid, 'admin_user_self_blocked'), show_alert=True)
+                return
+            db.adjust_user_usage_count(user_id, delta)
+            render_admin_user_detail(
+                chat_id=cid,
+                user_id=user_id,
+                ctx_token=token,
+                message_id=call.message.message_id,
+            )
+            bot.answer_callback_query(call.id, t(cid, 'admin_user_usage_updated_toast'))
+            return
+
+        if action == "qb" and len(parts) >= 5:
+            user_id = int(parts[2])
+            step = int(parts[3])
+            token = parts[4]
+            if user_id == ADMIN_ID:
+                bot.answer_callback_query(call.id, t(cid, 'admin_user_self_blocked'), show_alert=True)
+                return
+            delta_bytes = step * int(0.5 * (1024 ** 3))
+            db.adjust_user_quota_bytes(user_id, delta_bytes)
+            render_admin_user_detail(
+                chat_id=cid,
+                user_id=user_id,
+                ctx_token=token,
+                message_id=call.message.message_id,
+            )
+            bot.answer_callback_query(call.id, t(cid, 'admin_user_quota_updated_toast'))
+            return
+
+        if action == "en" and len(parts) >= 4:
+            user_id = int(parts[2])
+            token = parts[3]
+            if user_id == ADMIN_ID:
+                bot.answer_callback_query(call.id, t(cid, 'admin_user_self_blocked'), show_alert=True)
+                return
+            db.approve_user(user_id)
+            render_admin_user_detail(
+                chat_id=cid,
+                user_id=user_id,
+                ctx_token=token,
+                message_id=call.message.message_id,
+            )
+            bot.answer_callback_query(call.id, t(cid, 'admin_user_enabled_toast'))
+            return
+
+        if action == "da" and len(parts) >= 4:
+            user_id = int(parts[2])
+            token = parts[3]
+            render_admin_user_detail(
+                chat_id=cid,
+                user_id=user_id,
+                ctx_token=token,
+                message_id=call.message.message_id,
+                confirm_disable=True,
+            )
+            bot.answer_callback_query(call.id)
+            return
+
+        if action == "dc" and len(parts) >= 4:
+            user_id = int(parts[2])
+            token = parts[3]
+            if user_id == ADMIN_ID:
+                bot.answer_callback_query(call.id, t(cid, 'admin_user_self_blocked'), show_alert=True)
+                return
+            from handlers import disable_user_and_stop_tasks
+            disable_user_and_stop_tasks(user_id)
+            render_admin_user_detail(
+                chat_id=cid,
+                user_id=user_id,
+                ctx_token=token,
+                message_id=call.message.message_id,
+            )
+            bot.answer_callback_query(call.id, t(cid, 'admin_user_disabled_toast'))
+            return
+
+        if action == "s":
+            user_state[cid] = 'await_admin_user_search'
+            bot.answer_callback_query(call.id)
+            bot.send_message(cid, t(cid, 'admin_users_search_prompt'))
+            return
+
+        if action == "c":
+            render_admin_users_list(
+                chat_id=cid,
+                page=1,
+                query=None,
+                message_id=call.message.message_id,
+            )
+            bot.answer_callback_query(call.id, t(cid, 'admin_users_search_cleared_toast'))
+            return
+
+    except Exception:
+        bot.answer_callback_query(call.id, t(cid, 'admin_users_bad_action'), show_alert=True)
+        return
+
     bot.answer_callback_query(call.id)
 
 

@@ -67,6 +67,7 @@ def process_direct_download(task):
     try:
         real_url, filename = resolve_direct_url(url)
         fp         = os.path.join(DOWNLOAD_DIR, filename)
+        task['_active_path'] = fp
         start_time = time.time()
 
         with requests.get(real_url, stream=True, timeout=60,
@@ -109,7 +110,13 @@ def process_direct_download(task):
             real_size = os.path.getsize(fp) if os.path.isfile(fp) else 0
             db.record_download_bytes(cid, real_size)
 
-        task_info = {'title': filename, 'source': 'Direct Link', 'quality': ''}
+        task_info = {
+            'title': filename,
+            'source': 'Direct Link',
+            'quality': '',
+            '_stop': task.get('_stop'),
+            'user_id': cid,
+        }
         smart_dest(fp, msg, dest, folder_name=folder_name, task_info=task_info)
 
     except Exception as e:
