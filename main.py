@@ -1,9 +1,16 @@
 import time
+import logging
 from config import bot
 from downloader_queue import start_worker
 
 import handlers
 import callbacks
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+)
 
 def main():
     start_worker()

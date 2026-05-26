@@ -500,12 +500,14 @@ def _handle_menu(cid, text, message) -> bool:
     if text in (t(cid, 'btn_queue'), "📊 وضعیت صف", "📊 Queue Status"):
         from downloader_queue import get_queue_items
         q_items = get_queue_items()
-        curr    = config.current_task
+        with config.current_tasks_lock:
+            active_tasks = list(config.current_tasks.values())
         lines   = []
         unknown = t(cid, 'queue_unknown')
-        if curr:
-            c_title = curr.get('title') or curr.get('url', unknown)
-            lines.append(t(cid, 'queue_running', type=curr['type'], title=c_title))
+        if active_tasks:
+            for act in active_tasks:
+                a_title = act.get('title') or act.get('url', unknown)
+                lines.append(t(cid, 'queue_running', type=act['type'], title=a_title))
         else:
             lines.append(t(cid, 'queue_nothing_running'))
         if not q_items:
@@ -525,9 +527,13 @@ def _handle_menu(cid, text, message) -> bool:
         return True
 
     if text in (t(cid, 'btn_cancel'), "❌ لغو عملیات فعلی", "❌ Cancel Current Task"):
-        if config.current_task or config.rclone_process:
-            config.stop_event.set()
+        with config.current_tasks_lock:
+            my_task = config.current_tasks.get(cid)
+        if my_task or config.rclone_process:
+            if my_task:
+                my_task['_stop'].set()
             if config.rclone_process:
+                config.stop_event.set()  # rclone checks the global event
                 try:
                     config.rclone_process.terminate()
                 except Exception:

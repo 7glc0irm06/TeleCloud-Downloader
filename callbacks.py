@@ -281,10 +281,12 @@ def callback_query(call):
         _handle_gdrive_callback(call, cid, data)
         return
 
-    # ── Cancel ────────────────────────────────────────────────
+    # ── Cancel ────────────────────────────────────────────
     if data == "cancel_task":
-        if config.current_task:
-            stop_event.set()
+        with config.current_tasks_lock:
+            my_task = config.current_tasks.get(cid)
+        if my_task:
+            my_task['_stop'].set()
             bot.answer_callback_query(call.id, t(cid, 'cancel_requested'))
         else:
             bot.answer_callback_query(call.id, t(cid, 'cancel_no_task_toast'), show_alert=True)
@@ -567,13 +569,15 @@ def _refresh_queue_msg(cid, mid):
     from telebot import types
     from utils import get_free_space
     q_items = get_queue_items()
-    curr    = config.current_task
+    with config.current_tasks_lock:
+        active_tasks = list(config.current_tasks.values())
     unknown = t(cid, 'queue_unknown')
 
     lines = []
-    if curr:
-        c_title = curr.get('title') or curr.get('url', unknown)
-        lines.append(t(cid, 'queue_running', type=curr['type'], title=c_title))
+    if active_tasks:
+        for act in active_tasks:
+            a_title = act.get('title') or act.get('url', unknown)
+            lines.append(t(cid, 'queue_running', type=act['type'], title=a_title))
     else:
         lines.append(t(cid, 'queue_nothing_running'))
 

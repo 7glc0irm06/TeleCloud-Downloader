@@ -2,11 +2,14 @@ import os
 import re
 import glob
 import time
+import logging
 import threading
 import yt_dlp
 
+logger = logging.getLogger(__name__)
+
 import db
-from config import bot, stop_event, DOWNLOAD_DIR, cache_lock, url_cache, ADMIN_ID
+from config import bot, DOWNLOAD_DIR, cache_lock, url_cache, ADMIN_ID
 from cookies import active_cookies_file
 from utils import (check_disk_space, get_free_space, cleanup_path,
                    fmt_size, build_rich_progress_card, friendly_error)
@@ -203,7 +206,7 @@ def process_youtube_download(task):
     last_upd = [time.time()]
 
     def my_hook(d):
-        if stop_event.is_set(): raise Exception(t(cid, 'cancelled_keyword'))
+        if task['_stop'].is_set(): raise Exception(t(cid, 'cancelled_keyword'))
         if d['status'] == 'downloading' and time.time() - last_upd[0] > 3:
             pct   = d.get('downloaded_bytes', 0)
             total = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
@@ -264,7 +267,8 @@ def process_youtube_download(task):
         cleanup_path(folder)
 
     except Exception as e:
-        import traceback; print("FULL ERROR:", traceback.format_exc(), flush=True)
+        import traceback
+        logger.error("YouTube download failed: %s", traceback.format_exc())
         if file_path: cleanup_path(file_path)
         cleanup_path(folder)
         _handle_yt_error(e, chat_id, msg, cid)
@@ -307,7 +311,7 @@ def process_playlist_download(task):
         pl_title = re.sub(r'[\\/*?:"<>|]', '_', pl_title)[:40]
         total    = len(entries)
     except Exception as e:
-        import traceback; print("FULL ERROR:", traceback.format_exc(), flush=True)
+        logger.error("Playlist fetch failed: %s", e, exc_info=True)
         try: bot.edit_message_text(f"❌ {friendly_error(str(e), cid=cid)}", chat_id, msg.message_id)
         except Exception: pass
         return
@@ -330,9 +334,9 @@ def process_playlist_download(task):
     task_info_base = {'source': 'YouTube Playlist', 'quality': quality_label}
 
     def process_one(entry, idx):
-        if stop_event.is_set(): return
+        if task['_stop'].is_set(): return
         with semaphore:
-            if stop_event.is_set(): return
+            if task['_stop'].is_set(): return
             entry_url = entry.get('url') or f"https://www.youtube.com/watch?v={entry['id']}"
 
             # Build per-entry opts (reuse task settings for audio codec/quality)
@@ -374,7 +378,7 @@ def process_playlist_download(task):
                     candidates = glob.glob(base + '.*')
                     fp        = max(candidates, key=os.path.getmtime) if candidates else None
 
-                if fp and not stop_event.is_set():
+                if fp and not task['_stop'].is_set():
                     # ── Byte quota accounting ──────────────────
                     if cid != ADMIN_ID:
                         real_size = os.path.getsize(fp) if os.path.isfile(fp) else 0
@@ -384,7 +388,12 @@ def process_playlist_download(task):
                     item_info['title'] = os.path.basename(fp)
                     smart_dest(fp, sub, dest, folder_name=pl_title, task_info=item_info)
                 with lock: completed[0] += 1
-            except Exception:
+            except Exception as e:
+                # Log full traceback server-side so failed items are diagnosable.
+                logger.error(
+                    "Playlist item %d/%d failed (url=%s): %s",
+                    idx, total, entry_url, e, exc_info=True,
+                )
                 if fp: cleanup_path(fp)
                 with lock:
                     errors[0]    += 1

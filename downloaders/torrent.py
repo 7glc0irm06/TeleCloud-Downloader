@@ -4,7 +4,7 @@ import glob
 import time
 import subprocess
 
-from config import bot, stop_event, cache_lock, url_cache, DOWNLOAD_DIR
+from config import bot, cache_lock, url_cache, DOWNLOAD_DIR
 from utils import fmt_size, build_rich_progress_card, cleanup_path, friendly_error
 from uploaders.smart_dest import smart_dest
 
@@ -129,7 +129,7 @@ def _do_torrent_download(task, msg):
                               "dl_bytes": 0, "total_bytes": 0}
 
         while True:
-            if stop_event.is_set():
+            if task['_stop'].is_set():
                 process.terminate()
                 try:
                     bot.edit_message_text(t(cid, 'torrent_cancel_cb'), chat_id, msg.message_id)

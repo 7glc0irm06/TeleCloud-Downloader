@@ -37,6 +37,10 @@ COLAB_URL = os.environ.get(
 MAX_RETRIES  = 3
 RETRY_DELAY  = 10
 
+# Maximum number of downloads that may run in parallel.
+# Raise this only if your server has enough RAM and bandwidth.
+MAX_CONCURRENT_DOWNLOADS = int(os.environ.get('MAX_CONCURRENT_DOWNLOADS', '2'))
+
 # =============================================================
 # Per-user runtime state
 # =============================================================
@@ -102,7 +106,15 @@ apihelper.FILE_URL = "http://localhost:8081"
 bot = telebot.TeleBot(TOKEN, parse_mode=None)
 pending_queue  = []
 queue_lock     = threading.Lock()
-current_task   = None
+
+# current_tasks: maps chat_id → the task dict that worker is executing for that user.
+# Protected by current_tasks_lock for thread-safe reads/writes from any thread.
+current_tasks      = {}                # type: dict[int, dict]
+current_tasks_lock = threading.Lock()
+
+# stop_event: used exclusively for rclone upload cancellation.
+# Per-download cancellation is handled via task['_stop'] (a threading.Event
+# injected into each task by downloader_queue before dispatch).
 stop_event     = threading.Event()
 rclone_process = None
 

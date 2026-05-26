@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 import yt_dlp
 
 import db
-from config import bot, stop_event, DOWNLOAD_DIR, ADMIN_ID
+from config import bot, DOWNLOAD_DIR, ADMIN_ID
 from cookies import active_cookies_file
 from utils import check_disk_space, get_free_space, cleanup_path, build_rich_progress_card, friendly_error
 from uploaders.smart_dest import smart_dest
@@ -56,7 +56,7 @@ def ytdlp_universal(task):
     last_upd = [time.time()]
 
     def hook(d):
-        if stop_event.is_set(): raise Exception(t(cid, 'social_cancelled'))
+        if task['_stop'].is_set(): raise Exception(t(cid, 'social_cancelled'))
         if d['status'] == 'downloading' and time.time() - last_upd[0] > 3:
             pct   = d.get('downloaded_bytes', 0)
             total = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
