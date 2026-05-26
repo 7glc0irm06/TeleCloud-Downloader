@@ -4,6 +4,7 @@ import glob
 import time
 import logging
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import yt_dlp
 
 logger = logging.getLogger(__name__)
@@ -298,6 +299,8 @@ def process_playlist_download(task):
     audio_only = task.get('audio_only', False)
     fmt        = task.get('format', 'bestvideo+bestaudio/best')
     indices    = task.get('indices', None)
+    # Bug 2 fix: read the user-chosen count so the download is actually bounded.
+    end        = task.get('end', None)
 
     if not check_disk_space():
         bot.send_message(chat_id, t(cid, 'disk_no_space', free=get_free_space()))
@@ -309,7 +312,13 @@ def process_playlist_download(task):
 
     try:
         entries, pl_title = fetch_playlist_entries(url, cf)
-        if indices is not None: entries = [e for i, e in enumerate(entries, 1) if i in indices]
+        # Bug 2 fix: apply the end-count slice FIRST, then the explicit indices
+        # filter. Order matters: end slices from the top of the full list;
+        # indices selects specific positions within that already-bounded list.
+        if end is not None:
+            entries = entries[:end]
+        if indices is not None:
+            entries = [e for i, e in enumerate(entries, 1) if i in indices]
         pl_title = re.sub(r'[\\/*?:"<>|]', '_', pl_title)[:40]
         total    = len(entries)
     except Exception as e:
@@ -323,8 +332,9 @@ def process_playlist_download(task):
     completed    = [0]
     errors       = [0]
     lock         = threading.Lock()
-    semaphore    = threading.Semaphore(2)
-    last_pl_upd  = [time.time()]  # throttle playlist-summary edits to ≤1/3 s
+    # Bug 3 fix: concurrency is now controlled by the ThreadPoolExecutor
+    # (max_workers=3 below). The old Semaphore(2) is removed entirely.
+    last_pl_upd  = [time.time()]  # throttle playlist-summary edits to ≤3 s
 
     if audio_only:
         audio_codec   = task.get('audio_format', 'mp3')
@@ -337,92 +347,107 @@ def process_playlist_download(task):
     task_info_base = {'source': 'YouTube Playlist', 'quality': quality_label}
 
     def process_one(entry, idx):
+        # Bug 3 fix: no semaphore needed — the ThreadPoolExecutor's max_workers
+        # is the sole concurrency gate. Check the stop flag at entry instead.
         if task['_stop'].is_set(): return
-        with semaphore:
-            if task['_stop'].is_set(): return
-            entry_url = entry.get('url') or f"https://www.youtube.com/watch?v={entry['id']}"
+        entry_url = entry.get('url') or f"https://www.youtube.com/watch?v={entry['id']}"
 
-            # Build per-entry opts (reuse task settings for audio codec/quality)
-            postprocessors = []
-            if audio_only:
-                pp = {'key': 'FFmpegExtractAudio', 'preferredcodec': audio_codec if audio_codec != 'default' else 'mp3'}
-                if audio_quality != 'default':
-                    pp['preferredquality'] = audio_quality
-                postprocessors.append(pp)
+        # Build per-entry opts (reuse task settings for audio codec/quality)
+        postprocessors = []
+        if audio_only:
+            pp = {'key': 'FFmpegExtractAudio', 'preferredcodec': audio_codec if audio_codec != 'default' else 'mp3'}
+            if audio_quality != 'default':
+                pp['preferredquality'] = audio_quality
+            postprocessors.append(pp)
 
-            video_fmt  = task.get('video_format', 'mp4')
-            merge_fmt  = video_fmt if video_fmt != 'default' else 'mp4'
-            embed_chap = task.get('chapters', False)
-            if embed_chap and not audio_only:
-                postprocessors.append({'key': 'FFmpegMetadata', 'add_chapters': True})
+        video_fmt  = task.get('video_format', 'mp4')
+        merge_fmt  = video_fmt if video_fmt != 'default' else 'mp4'
+        embed_chap = task.get('chapters', False)
+        if embed_chap and not audio_only:
+            postprocessors.append({'key': 'FFmpegMetadata', 'add_chapters': True})
 
-            ydl_opts = {
-                'format':              fmt,
-                'outtmpl':             os.path.join(folder, f"{idx:03d}_%(title)s.%(ext)s"),
-                'merge_output_format': merge_fmt,
-                'quiet':               True,
-                'no_warnings':         True,
-                'js_runtimes':         {'node': {}},
-                'windowsfilenames':    True,
-                'concurrent_fragment_downloads': 4,
-                'throttledratelimit':           100000,
-                'postprocessors':      postprocessors,
-            }
-            if embed_chap and not audio_only:
-                ydl_opts['embedchapters'] = True
-            if cf: ydl_opts['cookiefile'] = cf
+        ydl_opts = {
+            'format':              fmt,
+            'outtmpl':             os.path.join(folder, f"{idx:03d}_%(title)s.%(ext)s"),
+            'merge_output_format': merge_fmt,
+            'quiet':               True,
+            'no_warnings':         True,
+            'js_runtimes':         {'node': {}},
+            'windowsfilenames':    True,
+            'concurrent_fragment_downloads': 4,
+            'throttledratelimit':           100000,
+            'postprocessors':      postprocessors,
+        }
+        if embed_chap and not audio_only:
+            ydl_opts['embedchapters'] = True
+        if cf: ydl_opts['cookiefile'] = cf
 
-            fp = None
-            try:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    dl_info   = ydl.extract_info(entry_url, download=True)
-                    expected  = ydl.prepare_filename(dl_info)
-                    base      = os.path.splitext(expected)[0]
-                    candidates = glob.glob(base + '.*')
-                    fp        = max(candidates, key=os.path.getmtime) if candidates else None
+        fp = None
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                dl_info   = ydl.extract_info(entry_url, download=True)
+                expected  = ydl.prepare_filename(dl_info)
+                base      = os.path.splitext(expected)[0]
+                candidates = glob.glob(base + '.*')
+                fp        = max(candidates, key=os.path.getmtime) if candidates else None
 
-                if fp and not task['_stop'].is_set():
-                    # ── Byte quota accounting ──────────────────
-                    if cid != ADMIN_ID:
-                        real_size = os.path.getsize(fp) if os.path.isfile(fp) else 0
-                        db.record_download_bytes(cid, real_size)
-                    sub = bot.send_message(chat_id, t(cid, 'uploading_item', idx=idx, total=total, name=os.path.basename(fp)))
-                    item_info = task_info_base.copy()
-                    item_info['title'] = os.path.basename(fp)
-                    smart_dest(fp, sub, dest, folder_name=pl_title, task_info=item_info)
-                with lock: completed[0] += 1
-            except Exception as e:
-                # Log full traceback server-side so failed items are diagnosable.
-                logger.error(
-                    "Playlist item %d/%d failed (url=%s): %s",
-                    idx, total, entry_url, e, exc_info=True,
-                )
-                if fp: cleanup_path(fp)
-                with lock:
-                    errors[0]    += 1
-                    completed[0] += 1
-
+            if fp and not task['_stop'].is_set():
+                # ── Byte quota accounting ──────────────────
+                if cid != ADMIN_ID:
+                    real_size = os.path.getsize(fp) if os.path.isfile(fp) else 0
+                    db.record_download_bytes(cid, real_size)
+                sub = bot.send_message(chat_id, t(cid, 'uploading_item', idx=idx, total=total, name=os.path.basename(fp)))
+                item_info = task_info_base.copy()
+                item_info['title'] = os.path.basename(fp)
+                smart_dest(fp, sub, dest, folder_name=pl_title, task_info=item_info)
+            with lock: completed[0] += 1
+        except Exception as e:
+            # Log full traceback server-side so failed items are diagnosable.
+            logger.error(
+                "Playlist item %d/%d failed (url=%s): %s",
+                idx, total, entry_url, e, exc_info=True,
+            )
+            if fp: cleanup_path(fp)
             with lock:
-                done = completed[0]
-                now  = time.time()
-                # Throttle playlist-summary edits: update at most once per 3 s
-                # (or always on the very last item to show the final count).
-                should_edit = (done == total) or (now - last_pl_upd[0] > 3)
-                if should_edit:
-                    last_pl_upd[0] = now
-            from utils import make_progress_bar
-            if should_edit:
-                try:
-                    bar = make_progress_bar(done / total * 100)
-                    safe_tg_call(
-                        bot.edit_message_text,
-                        f"📋 {pl_title}\n{bar} {done}/{total}\n✅ {done - errors[0]}  ❌ {errors[0]}",
-                        chat_id, msg.message_id, reply_markup=_cancel_markup(cid))
-                except Exception: pass
+                errors[0]    += 1
+                completed[0] += 1
 
-    threads = [threading.Thread(target=process_one, args=(e, i)) for i, e in enumerate(entries, 1)]
-    for th in threads: th.start()
-    for th in threads: th.join()
+        with lock:
+            done = completed[0]
+            now  = time.time()
+            # Throttle playlist-summary edits: update at most once per 3 s
+            # (or always on the very last item to show the final count).
+            should_edit = (done == total) or (now - last_pl_upd[0] > 3)
+            if should_edit:
+                last_pl_upd[0] = now
+        from utils import make_progress_bar
+        if should_edit:
+            try:
+                bar = make_progress_bar(done / total * 100)
+                safe_tg_call(
+                    bot.edit_message_text,
+                    f"📋 {pl_title}\n{bar} {done}/{total}\n✅ {done - errors[0]}  ❌ {errors[0]}",
+                    chat_id, msg.message_id, reply_markup=_cancel_markup(cid))
+            except Exception: pass
+
+    # Bug 3 fix: replace the unbounded "spawn N threads" pattern with a bounded
+    # ThreadPoolExecutor. max_workers=3 means at most 3 OS threads ever exist
+    # for this playlist, regardless of how many items it contains (e.g. 500).
+    # as_completed() lets us surface any unhandled exceptions from process_one
+    # for server-side logging while still allowing the others to finish.
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        futures = {
+            pool.submit(process_one, e, i): i
+            for i, e in enumerate(entries, 1)
+        }
+        for future in as_completed(futures):
+            try:
+                future.result()  # re-raise any exception not caught inside process_one
+            except Exception as exc:
+                logger.error(
+                    "Unhandled exception in playlist worker (item %d): %s",
+                    futures[future], exc, exc_info=True,
+                )
 
     try:
         safe_tg_call(
