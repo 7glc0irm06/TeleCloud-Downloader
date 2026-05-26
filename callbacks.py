@@ -860,6 +860,9 @@ def render_admin_users_list(chat_id: int, page: int = 1, query: str | None = Non
             _backfill_identity_if_missing(row)
             fresh_row = db.get_user(row["user_id"]) or row
             uid = row["user_id"]
+            if uid == ADMIN_ID and not fresh_row["is_approved"]:
+                db.approve_user(uid)
+                fresh_row = db.get_user(uid) or fresh_row
             approved = (
                 t(chat_id, 'admin_user_status_enabled')
                 if fresh_row["is_approved"] else
@@ -919,6 +922,9 @@ def render_admin_user_detail(
     confirm_disable: bool = False,
 ) -> None:
     row = db.get_user(user_id)
+    if user_id == ADMIN_ID and row is not None and not row["is_approved"]:
+        db.approve_user(user_id)
+        row = db.get_user(user_id) or row
     _backfill_identity_if_missing(row)
     row = db.get_user(user_id) or row
     if row is None:

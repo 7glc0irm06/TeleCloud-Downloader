@@ -75,6 +75,14 @@ def _display_name_from_user(user) -> str:
     return ((user.first_name or '') + ' ' + (user.last_name or '')).strip() or ''
 
 
+def _pretend_unknown_command(cid: int, message) -> None:
+    """
+    Security hardening: for non-admin users probing admin commands,
+    respond like a normal unknown input instead of revealing admin-only behavior.
+    """
+    bot.reply_to(message, t(cid, 'unknown_link'), reply_markup=main_menu_markup(cid))
+
+
 def _iter_task_paths(task: dict) -> list[str]:
     paths = []
     main_path = task.get('_active_path')
@@ -151,7 +159,7 @@ def start(message):
 
     # Admin always has full access
     if cid == ADMIN_ID:
-        db.add_user(cid, approved=True)
+        db.approve_user(cid)
         user_state[cid] = None
         bot.send_message(cid, t(cid, 'bot_ready'), reply_markup=main_menu_markup(cid))
         return
@@ -180,7 +188,7 @@ def start(message):
 def cmd_adduser(message):
     cid = message.chat.id
     if cid != ADMIN_ID:
-        bot.reply_to(message, t(cid, 'admin_only'))
+        _pretend_unknown_command(cid, message)
         return
     parts = message.text.split()
     if len(parts) < 2:
@@ -208,7 +216,7 @@ def cmd_adduser(message):
 def cmd_deluser(message):
     cid = message.chat.id
     if cid != ADMIN_ID:
-        bot.reply_to(message, t(cid, 'admin_only'))
+        _pretend_unknown_command(cid, message)
         return
     parts = message.text.split()
     if len(parts) < 2:
@@ -233,7 +241,7 @@ def cmd_deluser(message):
 def cmd_users(message):
     cid = message.chat.id
     if cid != ADMIN_ID:
-        bot.reply_to(message, t(cid, 'admin_only'))
+        _pretend_unknown_command(cid, message)
         return
     from callbacks import render_admin_users_list
     render_admin_users_list(chat_id=cid, page=1, query=None, message_id=None)
@@ -246,7 +254,7 @@ def cmd_users(message):
 def cmd_setquota(message):
     cid = message.chat.id
     if cid != ADMIN_ID:
-        bot.reply_to(message, t(cid, 'admin_only'))
+        _pretend_unknown_command(cid, message)
         return
     parts = message.text.split()
     if len(parts) < 4:
@@ -272,7 +280,7 @@ def cmd_setquota(message):
 def cmd_togglereg(message):
     cid = message.chat.id
     if cid != ADMIN_ID:
-        bot.reply_to(message, t(cid, 'admin_only'))
+        _pretend_unknown_command(cid, message)
         return
     config.REGISTRATION_OPEN = not config.REGISTRATION_OPEN
     status_key = 'admin_togglereg_open' if config.REGISTRATION_OPEN else 'admin_togglereg_closed'
@@ -287,7 +295,7 @@ def cmd_togglereg(message):
 def cmd_broadcast(message):
     cid  = message.chat.id
     if cid != ADMIN_ID:
-        bot.reply_to(message, t(cid, 'admin_only'))
+        _pretend_unknown_command(cid, message)
         return
     text = message.text.partition(' ')[2].strip()
     if not text:
