@@ -2,6 +2,7 @@ import time
 import threading
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from collections import Counter
 
 from config import bot, MAX_RETRIES, RETRY_DELAY, MAX_CONCURRENT_DOWNLOADS
 from utils import friendly_error
@@ -11,6 +12,10 @@ logger = logging.getLogger(__name__)
 
 # The single shared executor; initialised by start_worker().
 _executor: ThreadPoolExecutor | None = None
+
+# Round-robin cursor (chat_id of the last dispatched task).
+# Accessed only by the single dispatcher thread.
+_rr_last_chat_id = None
 
 
 # =============================================================
@@ -99,6 +104,64 @@ def _run_task(task: dict) -> None:
 # =============================================================
 # Internal: dispatcher thread — feeds tasks into the pool
 # =============================================================
+def _snapshot_active_by_chat() -> tuple[int, Counter]:
+    """
+    Return:
+      1) total number of active running tasks
+      2) per-chat active task counts
+
+    This function only holds current_tasks_lock and never touches queue_lock.
+    """
+    with config.current_tasks_lock:
+        active_tasks = list(config.current_tasks.values())
+
+    counts = Counter(tk.get('chat_id') for tk in active_tasks)
+    return len(active_tasks), counts
+
+
+def _pick_fair_pending_index(pending_queue: list, active_by_chat: Counter) -> int | None:
+    """
+    Pick one task index from pending_queue using user-based fairness:
+      1) Prefer chat_id(s) with the lowest currently-active count.
+      2) Break ties with round-robin across chat_id groups.
+      3) Within the chosen chat_id, pick its earliest queued task.
+
+    Must be called while queue_lock is held.
+    """
+    global _rr_last_chat_id
+
+    if not pending_queue:
+        return None
+
+    # Ordered first-seen chat_id list from the pending queue.
+    chats_in_order = []
+    seen = set()
+    for item in pending_queue:
+        chat = item.get('chat_id')
+        if chat not in seen:
+            seen.add(chat)
+            chats_in_order.append(chat)
+
+    # Find the minimum active count among chat_ids that currently have pending tasks.
+    min_active = min(active_by_chat.get(chat, 0) for chat in chats_in_order)
+    eligible_chats = [chat for chat in chats_in_order if active_by_chat.get(chat, 0) == min_active]
+
+    # Round-robin tie-break across eligible chats.
+    if _rr_last_chat_id in eligible_chats:
+        start = eligible_chats.index(_rr_last_chat_id)
+        chosen_chat = eligible_chats[(start + 1) % len(eligible_chats)]
+    else:
+        chosen_chat = eligible_chats[0]
+
+    # Pop the earliest queued task for that chosen chat.
+    for idx, item in enumerate(pending_queue):
+        if item.get('chat_id') == chosen_chat:
+            _rr_last_chat_id = chosen_chat
+            return idx
+
+    return None
+
+
 def _dispatcher() -> None:
     """
     Single lightweight thread that pops tasks from pending_queue and
@@ -112,10 +175,18 @@ def _dispatcher() -> None:
       • The event is available to the downloader closures via task['_stop'].
     """
     while True:
+        # Throttle submissions: never feed the executor if all worker slots are busy.
+        total_active, active_by_chat = _snapshot_active_by_chat()
+        if total_active >= MAX_CONCURRENT_DOWNLOADS:
+            time.sleep(0.5)
+            continue
+
         task = None
         with config.queue_lock:
             if config.pending_queue:
-                task = config.pending_queue.pop(0)
+                best_index = _pick_fair_pending_index(config.pending_queue, active_by_chat)
+                if best_index is not None:
+                    task = config.pending_queue.pop(best_index)
 
         if task is None:
             time.sleep(0.5)
