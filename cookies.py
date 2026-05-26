@@ -1,9 +1,15 @@
 import os
 import json
 import re
+import threading
 from urllib.parse import urlparse
 
 from config import COOKIES_DIR, COOKIES_STATE
+
+# Serialises all read-modify-write operations on cookies_enabled.json.
+# Without this lock, two concurrent Telegram callbacks can interleave
+# their read/write and silently lose each other's changes.
+_cookie_lock = threading.Lock()
 
 # =============================================================
 # Reading and writing cookie state
@@ -33,24 +39,27 @@ def is_cookie_enabled(name: str) -> bool:
     return _cookies_state().get(name, True)
 
 def set_cookie_enabled(name: str, val: bool):
-    state = _cookies_state()
-    state[name] = val
-    _save_cookies_state(state)
+    with _cookie_lock:
+        state = _cookies_state()
+        state[name] = val
+        _save_cookies_state(state)
 
 def delete_cookie(name: str):
     p = get_cookie_path(name)
     if os.path.exists(p):
         os.remove(p)
-    state = _cookies_state()
-    state.pop(name, None)
-    _save_cookies_state(state)
+    with _cookie_lock:
+        state = _cookies_state()
+        state.pop(name, None)
+        _save_cookies_state(state)
 
 def save_cookie_data(name: str, data: bytes):
     with open(get_cookie_path(name), 'wb') as f:
         f.write(data)
-    state = _cookies_state()
-    state[name] = True
-    _save_cookies_state(state)
+    with _cookie_lock:
+        state = _cookies_state()
+        state[name] = True
+        _save_cookies_state(state)
 
 def list_cookies() -> list:
     state  = _cookies_state()

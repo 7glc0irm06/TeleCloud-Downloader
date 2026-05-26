@@ -4,7 +4,8 @@ import time
 import requests
 from urllib.parse import urlparse
 
-from config import bot, stop_event, DOWNLOAD_DIR
+import db
+from config import bot, stop_event, DOWNLOAD_DIR, ADMIN_ID
 from utils import (check_disk_space, get_free_space, cleanup_path,
                    build_rich_progress_card, friendly_error)
 from uploaders.smart_dest import smart_dest
@@ -101,6 +102,11 @@ def process_direct_download(task):
             bot.edit_message_text(t(cid, 'direct_upload_preparing'), chat_id, msg.message_id)
         except Exception:
             pass
+
+        # ── Byte quota accounting ──────────────────────────────
+        if cid != ADMIN_ID:
+            real_size = os.path.getsize(fp) if os.path.isfile(fp) else 0
+            db.record_download_bytes(cid, real_size)
 
         task_info = {'title': filename, 'source': 'Direct Link', 'quality': ''}
         smart_dest(fp, msg, dest, folder_name=folder_name, task_info=task_info)

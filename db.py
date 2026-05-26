@@ -253,3 +253,28 @@ def check_and_update_quota(
     )
     conn.commit()
     return True, ""
+
+
+# ──────────────────────────────────────────────────────────────
+# Post-download byte accounting
+# ──────────────────────────────────────────────────────────────
+
+def record_download_bytes(user_id: int, file_size_bytes: int) -> None:
+    """
+    Increment bytes_downloaded by the *actual* size of a completed file.
+
+    Called after a successful download once the file is on disk and its
+    real size is known via os.path.getsize().  Intentionally separate from
+    check_and_update_quota so the pre-download gate can run at enqueue time
+    (before the size is known) while byte accounting is still accurate.
+
+    No-op if user_id is not in the database (admin bypass path).
+    """
+    if file_size_bytes <= 0:
+        return
+    conn = _get_conn()
+    conn.execute(
+        "UPDATE users SET bytes_downloaded=bytes_downloaded+? WHERE user_id=?",
+        (file_size_bytes, user_id),
+    )
+    conn.commit()

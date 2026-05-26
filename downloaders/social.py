@@ -4,7 +4,8 @@ import time
 from urllib.parse import urlparse
 import yt_dlp
 
-from config import bot, stop_event, DOWNLOAD_DIR
+import db
+from config import bot, stop_event, DOWNLOAD_DIR, ADMIN_ID
 from cookies import active_cookies_file
 from utils import check_disk_space, get_free_space, cleanup_path, build_rich_progress_card, friendly_error
 from uploaders.smart_dest import smart_dest
@@ -132,6 +133,11 @@ def ytdlp_universal(task):
 
         final_title = task.get('actual_title', f"{domain} Media")
         task_info = {'title': final_title, 'source': domain, 'quality': quality_label}
+
+        # ── Byte quota accounting ──────────────────────────────
+        if cid != ADMIN_ID:
+            real_size = os.path.getsize(fp) if os.path.isfile(fp) else 0
+            db.record_download_bytes(cid, real_size)
 
         smart_dest(fp, msg, dest, folder_name=None, task_info=task_info)
         cleanup_path(folder)

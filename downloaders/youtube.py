@@ -5,7 +5,8 @@ import time
 import threading
 import yt_dlp
 
-from config import bot, stop_event, DOWNLOAD_DIR, cache_lock, url_cache
+import db
+from config import bot, stop_event, DOWNLOAD_DIR, cache_lock, url_cache, ADMIN_ID
 from cookies import active_cookies_file
 from utils import (check_disk_space, get_free_space, cleanup_path,
                    fmt_size, build_rich_progress_card, friendly_error)
@@ -247,6 +248,11 @@ def process_youtube_download(task):
         try: bot.edit_message_text(t(cid, 'processing_file'), chat_id, msg.message_id)
         except Exception: pass
 
+        # ── Byte quota accounting ──────────────────────────────
+        if cid != ADMIN_ID:
+            real_size = os.path.getsize(file_path) if os.path.isfile(file_path) else 0
+            db.record_download_bytes(cid, real_size)
+
         final_title = task.get('actual_title', title_kw)
         task_info   = {
             'title':    final_title,
@@ -369,6 +375,10 @@ def process_playlist_download(task):
                     fp        = max(candidates, key=os.path.getmtime) if candidates else None
 
                 if fp and not stop_event.is_set():
+                    # ── Byte quota accounting ──────────────────
+                    if cid != ADMIN_ID:
+                        real_size = os.path.getsize(fp) if os.path.isfile(fp) else 0
+                        db.record_download_bytes(cid, real_size)
                     sub = bot.send_message(chat_id, t(cid, 'uploading_item', idx=idx, total=total, name=os.path.basename(fp)))
                     item_info = task_info_base.copy()
                     item_info['title'] = os.path.basename(fp)
