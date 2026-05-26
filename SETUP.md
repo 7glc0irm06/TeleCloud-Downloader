@@ -70,7 +70,7 @@ docker compose ps
 ### 2. Install Python dependencies
 
 ```bash
-pip install pyTelegramBotAPI yt-dlp requests
+pip install -r requirements.txt
 ```
 
 ### 3. Run

@@ -72,7 +72,7 @@ docker compose ps
 ### 2. نصب وابستگی‌های پایتون
 
 ```bash
-pip install pyTelegramBotAPI yt-dlp requests
+pip install -r requirements.txt
 ```
 
 ### 3. اجرا

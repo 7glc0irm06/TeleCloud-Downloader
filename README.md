@@ -137,6 +137,12 @@ git clone https://github.com/parsa-f/TeleCloud-Downloader.git
 cd TeleCloud-Downloader
 ```
 
+For local (non-Docker) execution, install Python packages with:
+
+```bash
+pip install -r requirements.txt
+```
+
 ### Step 3 — Configure Environment Variables
 
 Create a `.env` file in the project root. This file is **excluded from Git** (via `.gitignore`) and will never be committed.

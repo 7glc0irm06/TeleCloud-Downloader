@@ -139,6 +139,12 @@ git clone https://github.com/parsa-f/TeleCloud-Downloader.git
 cd TeleCloud-Downloader
 ```
 
+برای اجرای محلی (بدون Docker)، وابستگی‌های پایتون را با دستور زیر نصب کنید:
+
+```bash
+pip install -r requirements.txt
+```
+
 ### مرحله ۳ — پیکربندی متغیرهای محیطی
 
 یک فایل `.env` در مسیر اصلی پروژه ایجاد کنید. این فایل **از Git مستثنی شده** (از طریق `.gitignore`) و هرگز commit نمی‌شود.
