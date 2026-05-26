@@ -101,23 +101,37 @@ def list_cookies(cid=None) -> list:
     return result
 
 def active_cookies_file(url: str = '', cid=None) -> str:
-    """Return the appropriate cookie file for the given URL and user (cid).
-
-    Cookie lookup is strictly per-user: only files belonging to *cid* are
-    considered.  Pass cid=None only in legacy/admin contexts where isolation
-    is not required (falls back to the old flat-name behaviour).
-    """
     if url:
         try:
-            domain  = urlparse(url).netloc.lower()
-            domain  = re.sub(r'^www\\.', '', domain).split('.')[0]
+            domain = urlparse(url).netloc.lower()
+            domain = re.sub(r'^www\.', '', domain)
+
+            parts = domain.split('.')
+            checks = []
+
+            # Full domain underscored: music_youtube_com
+            checks.append(domain.replace('.', '_'))
+
+            # Progressively shorter from left: music_youtube, youtube
+            for i in range(len(parts) - 1):
+                checks.append('_'.join(parts[i:]))
+
+            # Second-level domain only: youtube
+            if len(parts) >= 2:
+                checks.append(parts[-2])
+
+            # x/twitter aliases
             aliases = {'x': ['x', 'twitter'], 'twitter': ['twitter', 'x']}
-            checks  = aliases.get(domain, [domain])
+            final_checks = []
             for name in checks:
+                final_checks.extend(aliases.get(name, [name]))
+
+            for name in final_checks:
                 if cookie_exists(name, cid) and is_cookie_enabled(name, cid):
                     return get_cookie_path(name, cid)
         except Exception:
             pass
+
     if cookie_exists('default', cid) and is_cookie_enabled('default', cid):
         return get_cookie_path('default', cid)
     return None
