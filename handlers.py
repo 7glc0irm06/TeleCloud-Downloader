@@ -303,13 +303,15 @@ def handle_incoming_files(message):
 
         info = bot.get_file(fid)
         file_path = info.file_path
+        fp = os.path.join(DOWNLOAD_DIR, fname)
         if file_path.startswith('/'):
-            import shutil
-            fp = os.path.join(DOWNLOAD_DIR, fname)
-            shutil.copy2(file_path, fp)
+            # Local Bot API server: file_path is an absolute path on the API
+            # server's filesystem. Read it directly — requires the bot container
+            # to share the same volume as the local API (see docker-compose.yml).
+            with open(file_path, 'rb') as _src, open(fp, 'wb') as _dst:
+                _dst.write(_src.read())
         else:
             data = bot.download_file(file_path)
-            fp   = os.path.join(DOWNLOAD_DIR, fname)
             with open(fp, 'wb') as f:
                 f.write(data)
         upload_file_to_gdrive_folder(
