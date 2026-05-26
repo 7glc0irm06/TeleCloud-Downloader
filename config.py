@@ -11,7 +11,7 @@ DRIVE_FOLDER_ID = os.environ.get('DRIVE_FOLDER_ID', '1n-I9Ipd2I5SL27HhFlaPzaMzRt
 DOWNLOAD_DIR    = '/root/downloads'
 COOKIES_DIR     = '/root/cookies'
 COOKIES_STATE   = '/root/cookies_enabled.json'
-USER_LANGS_FILE = '/root/user_langs.json'
+USER_LANGS_FILE = '/app/user_configs/user_langs.json'
 USER_CONFIGS_DIR = '/app/user_configs'
 
 # =============================================================

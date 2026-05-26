@@ -323,6 +323,12 @@ def handle_incoming_files(message):
 # =============================================================
 # rclone.conf handler — multi-tenant Google Drive onboarding
 # =============================================================
+# Maximum accepted size for an rclone.conf file.
+# A real rclone.conf with OAuth tokens is well under 5 KB;
+# 512 KB is a generous ceiling that still blocks malicious large files.
+_MAX_RCLONE_CONF_BYTES = 512 * 1024  # 512 KB
+
+
 def _handle_rclone_conf_upload(message, cid: int) -> None:
     """
     Persist a user-supplied rclone.conf to:
@@ -336,13 +342,39 @@ def _handle_rclone_conf_upload(message, cid: int) -> None:
     status_msg = bot.reply_to(message, "⏳ در حال پردازش فایل rclone.conf…")
 
     try:
+        # ── Bug 5 fix: reject oversized files BEFORE reading into RAM ─────
+        # Telegram always populates file_size; the Local Bot API lifts the
+        # normal 20 MB cap to 2 GB, so we must enforce our own limit here.
+        reported_size = message.document.file_size or 0
+        if reported_size > _MAX_RCLONE_CONF_BYTES:
+            bot.edit_message_text(
+                f"❌ فایل ارسالی بیش از حد بزرگ است ({reported_size // 1024} KB).\n"
+                "یک فایل <code>rclone.conf</code> معتبر باید کمتر از 512 KB باشد.",
+                cid,
+                status_msg.message_id,
+                parse_mode='HTML',
+            )
+            return
+        # ─────────────────────────────────────────────────────────────────
+
         # Download the file from Telegram / local bot-api server
         file_info = bot.get_file(message.document.file_id)
         file_path = file_info.file_path
 
         if file_path.startswith('/'):
-            # Local Bot-API server — file already on shared volume
-            import shutil
+            # Local Bot-API server — file already on shared volume.
+            # Double-check the on-disk size in case file_size was spoofed
+            # or the Telegram metadata was stale.
+            disk_size = os.path.getsize(file_path)
+            if disk_size > _MAX_RCLONE_CONF_BYTES:
+                bot.edit_message_text(
+                    f"❌ فایل ارسالی بیش از حد بزرگ است ({disk_size // 1024} KB).\n"
+                    "یک فایل <code>rclone.conf</code> معتبر باید کمتر از 512 KB باشد.",
+                    cid,
+                    status_msg.message_id,
+                    parse_mode='HTML',
+                )
+                return
             raw_data = Path(file_path).read_bytes()
         else:
             # Cloud Telegram servers
@@ -607,7 +639,7 @@ def _handle_youtube_link(message, cid, text):
     key = (cid, msg.message_id)
     with cache_lock:
         url_cache[key] = text
-    opts = {'extract_flat': True, 'playlistend': 5, 'quiet': True, 'js_runtimes': {'node': {}}}
+    opts = {'extract_flat': True, 'quiet': True, 'js_runtimes': {'node': {}}}
     cf   = active_cookies_file(text)
     if cf:
         opts['cookiefile'] = cf
