@@ -632,7 +632,7 @@ def _handle_menu(cid, text, message) -> bool:
         return True
 
     if text in (t(cid, 'btn_help'), "ℹ️ راهنما", "ℹ️ Help"):
-        bot.send_message(cid, t(cid, 'help_text'), reply_markup=main_menu_markup(cid))
+        bot.send_message(cid, _build_help_text(cid), reply_markup=main_menu_markup(cid))
         return True
 
     if text in (t(cid, 'btn_change_lang'), "تغییر زبان 🌐", "Change Language 🌐"):
@@ -645,6 +645,71 @@ def _handle_menu(cid, text, message) -> bool:
         return True
 
     return False
+
+
+def _build_help_text(cid: int) -> str:
+    """
+    Up-to-date usage guide shown by the Help button.
+    Keeps instructions aligned with the current menu flow.
+    """
+    lang = get_lang(cid)
+
+    if lang == 'fa':
+        text = (
+            "📖 راهنمای سریع\n\n"
+            "1) /start را بزنید و زبان را انتخاب کنید.\n"
+            "2) لینک بفرستید (YouTube/Instagram/Direct/Magnet).\n"
+            "3) از دکمه ⚙️ تنظیمات برای انتخاب حالت‌ها استفاده کنید:\n"
+            "   - Media: ویدیو یا صوت\n"
+            "   - Format / Quality\n"
+            "   - Upload: تلگرام / گوگل درایو / پرسش هر بار\n"
+            "   - Subtitle / Chapters\n"
+            "4) برای لینک‌های محدود، از 🍪 Cookie Manager کوکی اضافه کنید.\n"
+            "5) وضعیت دانلودها را از 📊 Queue Status ببینید.\n"
+            "6) اطلاعات مصرف روزانه را از 👤 My Profile ببینید.\n\n"
+            "☁️ اتصال گوگل درایو:\n"
+            "از داخل ⚙️ تنظیمات روی گزینه Google Drive بزنید و فایل rclone.conf را ارسال کنید.\n\n"
+            "❌ لغو عملیات فعلی:\n"
+            "با دکمه «Cancel Current Task» دانلود/آپلود جاری متوقف می‌شود."
+        )
+        if cid == ADMIN_ID:
+            text += (
+                "\n\n🔐 دستورات ادمین:\n"
+                "/adduser <id>\n"
+                "/deluser <id>\n"
+                "/setquota <id> <files> <GB>\n"
+                "/togglereg\n"
+                "/broadcast <message>"
+            )
+        return text
+
+    text = (
+        "📖 Quick Help\n\n"
+        "1) Press /start and choose your language.\n"
+        "2) Send a link (YouTube/Instagram/Direct/Magnet).\n"
+        "3) Open ⚙️ Settings to configure:\n"
+        "   - Media mode (video/audio)\n"
+        "   - Format and quality\n"
+        "   - Upload destination (Telegram/Google Drive/Ask every time)\n"
+        "   - Subtitle and chapters\n"
+        "4) For restricted content, add site cookies in 🍪 Cookie Manager.\n"
+        "5) Check active/waiting downloads in 📊 Queue Status.\n"
+        "6) View your daily usage in 👤 My Profile.\n\n"
+        "☁️ Google Drive setup:\n"
+        "In ⚙️ Settings, tap Google Drive and send your rclone.conf file.\n\n"
+        "❌ Cancel current task:\n"
+        "Use the 'Cancel Current Task' button to stop running download/upload jobs."
+    )
+    if cid == ADMIN_ID:
+        text += (
+            "\n\n🔐 Admin commands:\n"
+            "/adduser <id>\n"
+            "/deluser <id>\n"
+            "/setquota <id> <files> <GB>\n"
+            "/togglereg\n"
+            "/broadcast <message>"
+        )
+    return text
 
 
 # =============================================================
