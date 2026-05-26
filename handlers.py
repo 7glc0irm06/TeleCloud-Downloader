@@ -800,6 +800,42 @@ def _handle_direct_link(message, cid, text):
         bot.reply_to(message, t(cid, 'select_dest'), reply_markup=markup)
 
 
+# =============================================================
+# Social-link helpers (Bug 4a & 4b)
+# =============================================================
+
+# Domains that serve audio content only — no video formats exist.
+# Sending these through the video-quality probe wastes an API round-trip
+# and produces a confusing "Best Quality" video button for audio tracks.
+_AUDIO_ONLY_DOMAINS = {
+    'soundcloud.com', 'on.soundcloud.com', 'm.soundcloud.com',
+    'spotify.com', 'open.spotify.com',
+    'bandcamp.com',
+    'audiomack.com',
+    'deezer.com',
+    'tidal.com',
+}
+
+
+def _url_is_playlist(url: str) -> bool:
+    """
+    Return True when noplaylist=True is safe (i.e. the URL is a single item).
+    Return False when the URL is a collection that should be downloaded as a
+    playlist (noplaylist must be omitted / False).
+
+    Currently handles SoundCloud /sets/ paths; extend the mapping as needed.
+    """
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    host   = parsed.netloc.replace('www.', '')
+    path   = parsed.path
+    # SoundCloud album / set URLs contain "/sets/" in the path.
+    if host in ('soundcloud.com', 'on.soundcloud.com', 'm.soundcloud.com'):
+        if '/sets/' in path:
+            return False   # it IS a playlist → do NOT set noplaylist
+    return True   # safe to treat as a single item
+
+
 def _handle_social_link(message, cid, text):
     domain = urlparse(text).netloc.replace('www.', '')
     msg    = bot.reply_to(message, t(cid, 'fetching_info', domain=domain))
@@ -810,7 +846,15 @@ def _handle_social_link(message, cid, text):
     quality = get_quality(cid)
     audio   = is_audio_mode(cid)
 
-    if audio:
+    # ── Bug 4b: force audio-only path for known audio-centric domains ────────
+    # Regardless of the user's video/audio mode setting, platforms like
+    # SoundCloud and Spotify never provide video streams. Routing them through
+    # the video format probe wastes a network round-trip and shows a confusing
+    # "Best Quality" (video) button for what is purely audio content.
+    base_domain = domain.split(':')[0]  # strip port if present
+    is_audio_domain = base_domain in _AUDIO_ONLY_DOMAINS
+
+    if audio or is_audio_domain:
         dest = get_dest(cid)
         if should_ask_dest(cid):
             dest_mk = types.InlineKeyboardMarkup()
@@ -886,7 +930,9 @@ def _handle_social_link(message, cid, text):
 
     def fetch_social_formats():
         cf   = active_cookies_file(text)
-        opts = {'quiet': True, 'skip_download': True, 'noplaylist': True, 'js_runtimes': {'node': {}}}
+        # Bug 4a: dynamically decide noplaylist based on the URL structure.
+        # SoundCloud /sets/ URLs are playlists and must not be truncated to 1 track.
+        opts = {'quiet': True, 'skip_download': True, 'noplaylist': _url_is_playlist(text), 'js_runtimes': {'node': {}}}
         if cf:
             opts['cookiefile'] = cf
         try:

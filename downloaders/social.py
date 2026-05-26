@@ -9,6 +9,8 @@ from config import bot, DOWNLOAD_DIR, ADMIN_ID
 from cookies import active_cookies_file
 from utils import check_disk_space, get_free_space, cleanup_path, build_rich_progress_card, friendly_error, safe_tg_call
 from uploaders.smart_dest import smart_dest
+# _url_is_playlist is defined in handlers alongside the other social-link helpers.
+# Import lazily inside the function to avoid a circular-import at module load time.
 
 def _cancel_markup(cid=None):
     from telebot import types
@@ -89,6 +91,11 @@ def ytdlp_universal(task):
 
     merge_fmt = video_fmt if video_fmt != 'default' else 'mp4'
 
+    # Bug 4a fix: import lazily to avoid a circular-import at module load time
+    # (social.py is imported by handlers.py, so a top-level import would create a cycle).
+    from handlers import _url_is_playlist
+    _noplaylist = _url_is_playlist(url)
+
     ydl_opts = {
         'format':              task.get('format', 'bestvideo+bestaudio/best'),
         'outtmpl':             os.path.join(folder, '%(title)s.%(ext)s'),
@@ -98,7 +105,9 @@ def ytdlp_universal(task):
         'no_warnings':         True,
         'js_runtimes':         {'node': {}},
         'windowsfilenames':    True,
-        'noplaylist':          True,
+        # Bug 4a: False for SoundCloud /sets/ so the whole album downloads,
+        # True for single-item URLs (the safe default for all other platforms).
+        'noplaylist':          _noplaylist,
         'nocheckcertificate':  True,
         'format_sort':         ['res', 'ext:mp4:m4a'],
         'postprocessors':      postprocessors,
