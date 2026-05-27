@@ -59,7 +59,7 @@ docker compose ps
 
 ### Optional: Quick Start Script (Beginner-Friendly)
 
-If you are deploying on a Linux server and prefer a one-command startup, you can use `start.sh`:
+If you are deploying on an Ubuntu/Debian Linux server and want a guided one-time installer, use `start.sh`:
 
 ```bash
 chmod +x start.sh
@@ -68,16 +68,19 @@ chmod +x start.sh
 
 What `start.sh` does:
 
-- Changes directory to `/root/bot`
-- Creates `cookies_enabled.json` if missing
-- Copies `rclone.conf` from `/root/.config/rclone/rclone.conf` if missing
-- Runs `docker compose up -d`
+- Checks project context and validates required paths/files
+- Installs/checks server dependencies (`git`, `curl`, `unzip`, Docker, Docker Compose)
+- Prompts for required `.env` variables (token, password, API ID/hash, admin ID)
+- Fills safe defaults for advanced settings
+- Guides Google Drive setup (`rclone.conf`) with Colab fallback instructions
+- Enforces `./rclone.conf` placeholder file if Drive setup is skipped (prevents Docker directory-mount crash)
+- Builds and starts containers, then shows service status
 
 Important:
 
-- This script assumes your project path is `/root/bot`.
-- It also assumes your server has `/root/.config/rclone/rclone.conf`.
-- If your paths differ, use the manual Docker steps above instead.
+- This installer is intended for Ubuntu/Debian Linux servers.
+- Run it from the project root directory (already extracted).
+- If Drive is skipped, the bot still starts in Telegram-only mode.
 
 ## Local Run (Non-Docker)
 

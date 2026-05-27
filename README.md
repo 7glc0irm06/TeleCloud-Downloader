@@ -4,6 +4,8 @@
 
   <a href="./README_FA.md">🇮🇷 مستندات فارسی</a>
   <br>
+  <a href="./QUICKSTART.md">⚡ Quick Start (Beginners)</a> · <a href="./QUICKSTART_FA.md">⚡ شروع سریع فارسی</a>
+  <br>
   <a href="./SETUP.md">🛠️ Setup Guide</a> · <a href="./SETUP_FA.md">🛠️ راهنمای نصب فارسی</a>
   <br><br>
 

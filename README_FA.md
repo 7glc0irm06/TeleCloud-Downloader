@@ -4,6 +4,8 @@
 
   <a href="./README.md">🇺🇸 Read in English</a>
   <br>
+  <a href="./QUICKSTART_FA.md">⚡ شروع سریع</a> · <a href="./QUICKSTART.md">⚡ English Quick Start</a>
+  <br>
   <a href="./SETUP_FA.md">🛠️ راهنمای نصب</a> · <a href="./SETUP.md">🛠️ English Setup Guide</a>
   <br><br>
 
