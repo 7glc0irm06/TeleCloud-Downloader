@@ -101,8 +101,10 @@ cache_lock = threading.Lock()
 # Shared objects
 # =============================================================
 import telebot.apihelper as apihelper
-apihelper.API_URL = "http://localhost:8081/bot{0}/{1}"
-apihelper.FILE_URL = "http://localhost:8081"
+TELEGRAM_LOCAL = os.environ.get('TELEGRAM_LOCAL', '1').strip().lower() in ('1', 'true', 'yes', 'on')
+if TELEGRAM_LOCAL:
+    apihelper.API_URL = "http://localhost:8081/bot{0}/{1}"
+    apihelper.FILE_URL = "http://localhost:8081"
 bot = telebot.TeleBot(TOKEN, parse_mode=None)
 # Set explicit timeouts for all short API calls (edit, send_message, etc.).
 # Large-file uploads override this per-call via timeout=upload_timeout in

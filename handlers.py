@@ -28,6 +28,33 @@ from downloaders.social import _is_ytdlp_url
 from locales import t
 from user_langs import get_lang, has_lang, set_lang
 
+_LOCAL_API_ROOT = "/var/lib/telegram-bot-api"
+
+
+def _resolve_local_bot_api_path(file_path: str) -> str:
+    """
+    Rebuild an absolute local Bot API path when get_file() returns relative
+    paths. If local storage is unavailable, keep original path for cloud
+    download fallback.
+    """
+    if file_path.startswith('/'):
+        return file_path
+    try:
+        from glob import glob as _glob
+        token_dirs = _glob(os.path.join(_LOCAL_API_ROOT, "*:*"))
+        if not token_dirs and os.path.isdir(_LOCAL_API_ROOT):
+            token_dirs = [
+                os.path.join(_LOCAL_API_ROOT, d)
+                for d in os.listdir(_LOCAL_API_ROOT)
+                if os.path.isdir(os.path.join(_LOCAL_API_ROOT, d))
+                and not d.endswith('.binlog')
+            ]
+        if token_dirs:
+            return os.path.join(token_dirs[0], file_path)
+    except Exception:
+        return file_path
+    return file_path
+
 
 # =============================================================
 # Quota-aware enqueue wrapper
@@ -343,23 +370,8 @@ def handle_incoming_files(message):
         fname = message.document.file_name
         if state == 'await_cookie_file' or 'cookie' in fname.lower():
             try:
-                from glob import glob as _glob
                 info = bot.get_file(message.document.file_id)
-                _fp  = info.file_path
-                # Local Bot API may return absolute OR relative paths.
-                # Reconstruct absolute path when relative (e.g. 'documents/file.txt').
-                _LOCAL_API_ROOT = "/var/lib/telegram-bot-api"
-                if not _fp.startswith('/'):
-                    _token_dirs = _glob(os.path.join(_LOCAL_API_ROOT, "*:*"))
-                    if not _token_dirs:
-                        _token_dirs = [
-                            os.path.join(_LOCAL_API_ROOT, d)
-                            for d in os.listdir(_LOCAL_API_ROOT)
-                            if os.path.isdir(os.path.join(_LOCAL_API_ROOT, d))
-                            and not d.endswith('.binlog')
-                        ]
-                    if _token_dirs:
-                        _fp = os.path.join(_token_dirs[0], _fp)
+                _fp = _resolve_local_bot_api_path(info.file_path)
                 if _fp.startswith('/'):
                     data = Path(_fp).read_bytes()
                 else:
@@ -405,24 +417,8 @@ def handle_incoming_files(message):
             return
 
         info = bot.get_file(fid)
-        file_path = info.file_path
+        file_path = _resolve_local_bot_api_path(info.file_path)
         fp = os.path.join(DOWNLOAD_DIR, fname)
-        # The local Bot API server may return either:
-        #   a) an absolute path  e.g. /var/lib/telegram-bot-api/<token>/videos/file.mp4
-        #   b) a relative path   e.g. videos/file.mp4  (observed in practice)
-        # In case (b) we reconstruct the absolute path using the known mount point.
-        LOCAL_API_ROOT = "/var/lib/telegram-bot-api"
-        if not file_path.startswith('/'):
-            import glob as _glob
-            # Find the token directory (there is only one)
-            token_dirs = _glob.glob(os.path.join(LOCAL_API_ROOT, "*:"))
-            if not token_dirs:
-                token_dirs = [d for d in os.listdir(LOCAL_API_ROOT)
-                              if os.path.isdir(os.path.join(LOCAL_API_ROOT, d))]
-                token_dirs = [os.path.join(LOCAL_API_ROOT, d) for d in token_dirs
-                              if not d.endswith(".binlog")]
-            if token_dirs:
-                file_path = os.path.join(token_dirs[0], file_path)
         if file_path.startswith('/'):
             # Local Bot API server: read the file directly from the shared volume.
             with open(file_path, 'rb') as _src, open(fp, 'wb') as _dst:
@@ -483,23 +479,8 @@ def _handle_rclone_conf_upload(message, cid: int) -> None:
         # ─────────────────────────────────────────────────────────────────
 
         # Download the file from Telegram / local bot-api server
-        from glob import glob as _glob
         file_info = bot.get_file(message.document.file_id)
-        file_path = file_info.file_path
-
-        # Local Bot API may return absolute OR relative paths — reconstruct if relative.
-        _LOCAL_API_ROOT = "/var/lib/telegram-bot-api"
-        if not file_path.startswith('/'):
-            _token_dirs = _glob(os.path.join(_LOCAL_API_ROOT, "*:*"))
-            if not _token_dirs:
-                _token_dirs = [
-                    os.path.join(_LOCAL_API_ROOT, d)
-                    for d in os.listdir(_LOCAL_API_ROOT)
-                    if os.path.isdir(os.path.join(_LOCAL_API_ROOT, d))
-                    and not d.endswith('.binlog')
-                ]
-            if _token_dirs:
-                file_path = os.path.join(_token_dirs[0], file_path)
+        file_path = _resolve_local_bot_api_path(file_info.file_path)
 
         if file_path.startswith('/'):
             # Local Bot-API server — file already on shared volume.
