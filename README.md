@@ -46,7 +46,7 @@
 Unlike standard bots that are capped by Telegram's default **20 MB download / 50 MB upload** limits, TeleCloud-Downloader runs its own **self-hosted Local Telegram Bot API Server** (`aiogram/telegram-bot-api`). This completely bypasses Telegram's cloud restrictions:
 
 - **📦 Supports files up to 2 GB** — download and send massive video, audio, and archive files without restrictions.
-- **⚡ Lightning-fast local file transfers** — In local mode, `getFile` returns the physical path of the downloaded file on disk. The bot uses `shutil.copy2` via a **shared Docker volume** (`/root/downloads`) to move files between containers instantly — no HTTP re-download, no network overhead.
+- **⚡ Lightning-fast local file transfers** — In local mode, the bot reads files directly from shared local Bot API storage (`/var/lib/telegram-bot-api`) and falls back to cloud download only when needed.
 - **🔒 Private & self-contained** — All API traffic stays on your own server (`http://localhost:8081`), never touching Telegram's cloud API endpoint.
 
 ---
@@ -78,30 +78,28 @@ Full Persian and English localization. Includes an interactive cookie manager (v
 
 ## 🏗️ Architecture Overview
 
-TeleCloud-Downloader is orchestrated as a **multi-container Docker application** using `docker-compose`. Four containers always run together:
+TeleCloud-Downloader runs with two deployment modes:
 
-```
+- **Local API mode (`TELEGRAM_LOCAL=1`)**: `telegram-bot` + `telegram-bot-api`
+- **Cloud API mode (`TELEGRAM_LOCAL=0`)**: `telegram-bot` only
+
+Local API mode architecture:
+
+```text
 ┌─────────────────────────────────────────────────────────────┐
-│                    Docker Host (Host Network)                │
+│                    Docker Host (Host Network)              │
 │                                                             │
 │  ┌────────────────────┐    ┌─────────────────────────────┐  │
-│  │  telegram-bot-api  │    │       telegram-bot           │  │
-│  │  (Local API Server)│    │    (Downloader Bot)          │  │
-│  │  Port: 8081        │◄───│  Communicates via localhost  │  │
-│  │  aiogram/tg-bot-api│    │  parsafadaeei/telegram-bot  │  │
+│  │  telegram-bot-api  │    │       telegram-bot          │  │
+│  │  Port: 8081        │◄───│  Uses localhost Bot API     │  │
 │  └────────────┬───────┘    └────────────┬────────────────┘  │
 │               │                          │                   │
 │               └──────────────────────────┘                   │
-│               Shared Volume: /root/downloads                 │
-│         (Files transferred via shutil.copy2, not HTTP)       │
-│                                                             │
-│  ┌──────────────────┐    ┌──────────────────────────────┐   │
-│  │   goose-server   │    │       goose-manager          │   │
-│  └──────────────────┘    └──────────────────────────────┘   │
+│      Shared local API storage: /var/lib/telegram-bot-api       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Key design choice:** Both containers share the same `network_mode: host` and the same `/root/downloads` bind mount. When the Local API Server saves a file, the bot reads it from the **exact same path on disk** using `shutil.copy2` — making uploads near-instantaneous regardless of file size.
+**Important runtime detail:** In local mode, `bot.get_file()` can return a relative path. The bot reconstructs the absolute path under `/var/lib/telegram-bot-api/...` before reading the file, with cloud download fallback when needed.
 
 ---
 
@@ -122,87 +120,74 @@ TeleCloud-Downloader is orchestrated as a **multi-container Docker application**
 
 ## 🚀 Installation & Deployment
 
-> **The `Dockerfile` and `docker-compose.yml` are included in the repository.** Clone, configure, and run — that's all.
+### Beginner Path (Recommended): `start.sh`
 
-### Step 1 — Prerequisites
+Use the one-command installer:
 
-Ensure the following are installed on your server (Ubuntu/Linux recommended):
+```bash
+chmod +x start.sh
+./start.sh
+```
+
+What this does:
+
+- Collects required values (`DOWNLOADER_BOT_TOKEN`, `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `ADMIN_ID`)
+- Lets you choose local API mode (`TELEGRAM_LOCAL=1` or `0`)
+- Optionally configures Google Drive (`./rclone.conf`)
+- Generates and runs `.start.compose.yml` for your selected mode
+
+For full beginner flow details, see [QUICKSTART.md](./QUICKSTART.md).
+
+### Advanced Path: Manual Docker Setup
+
+#### 1) Prerequisites
 
 - [Docker Engine](https://docs.docker.com/engine/install/)
 - [Docker Compose Plugin](https://docs.docker.com/compose/install/) (`docker compose` v2)
 - Git
 
-### Step 2 — Clone the Repository
+#### 2) Clone
 
 ```bash
 git clone https://github.com/parsa-f/TeleCloud-Downloader.git
 cd TeleCloud-Downloader
 ```
 
-For local (non-Docker) execution, install Python packages with:
-
-```bash
-pip install -r requirements.txt
-```
-
-### Step 3 — Configure Environment Variables
-
-Create a `.env` file in the project root. This file is **excluded from Git** (via `.gitignore`) and will never be committed.
+#### 3) Create `.env`
 
 ```env
-# ─── Telegram Bot Credentials ─────────────────────────────
 DOWNLOADER_BOT_TOKEN=your_telegram_bot_token_here
-BOT_PASSWORD=your_secure_access_password
-
-# ─── Local Telegram Bot API (Required for 2GB file support) ─
 TELEGRAM_API_ID=your_api_id_from_my.telegram.org
 TELEGRAM_API_HASH=your_api_hash_from_my.telegram.org
+ADMIN_ID=your_numeric_telegram_user_id
 TELEGRAM_LOCAL=1
-
-# ─── Optional ─────────────────────────────────────────────
-# Path to rclone config inside the container (default shown)
-RCLONE_CONFIG_PATH=/root/.config/rclone/rclone.conf
 ```
 
-> **How to get `TELEGRAM_API_ID` and `TELEGRAM_API_HASH`:**  
-> Log in to [my.telegram.org](https://my.telegram.org), go to **API Development Tools**, and create an application. Copy the `api_id` and `api_hash`.
-
-> **How to get your Bot Token:**  
-> Open [@BotFather](https://t.me/BotFather) on Telegram, run `/newbot`, and copy the provided token.
-
-### Step 4 — Configure Rclone (for Google Drive)
-
-If you intend to use Google Drive uploads, place your `rclone.conf` at the expected host path: `/root/.config/rclone/rclone.conf`. The `docker-compose.yml` mounts this directory into the container.
+#### 4) Prepare required host files/directories
 
 ```bash
-# If you already have rclone configured on your machine:
-rclone config   # then authorize your Google Drive remote
-
-# Or copy an existing config:
-cp ~/.config/rclone/rclone.conf /root/.config/rclone/rclone.conf
+mkdir -p downloads cookies user_configs
+test -f cookies_enabled.json || printf "{}" > cookies_enabled.json
+test -f rclone.conf || touch rclone.conf
 ```
 
-> If you **do not** use Google Drive, this step can be skipped. The bot will still work with Telegram-only uploads.
-
-### Step 5 — Build & Launch
+#### 5) Launch
 
 ```bash
 docker compose up -d --build
-```
-
-Confirm all 4 containers are running:
-
-```bash
 docker compose ps
-# or
-docker ps
 ```
 
-View live logs:
+Expected services:
+
+- `TELEGRAM_LOCAL=1`: `telegram-bot` + `telegram-bot-api`
+- `TELEGRAM_LOCAL=0`: `telegram-bot` only
+
+Logs:
 
 ```bash
-docker logs -f telegram-bot
-docker logs -f telegram-bot-api
+docker compose logs -f telegram-bot
+docker compose logs -f telegram-bot-api
 ```
 
 ---
@@ -211,11 +196,11 @@ docker logs -f telegram-bot-api
 
 ### Authentication
 
-The bot is password-protected. On first use, send the password you set in `BOT_PASSWORD` to the bot:
+Access is approval-based:
 
-```
-your_secure_access_password
-```
+- `ADMIN_ID` always has access.
+- If `REGISTRATION_OPEN=true`, new users are auto-approved on `/start`.
+- If `REGISTRATION_OPEN=false`, users must send `/start` and request access; admin approves/rejects.
 
 ### Downloading Media
 
@@ -253,16 +238,21 @@ To bypass age restrictions or access private content, upload a **Netscape-format
 
 ## ⚙️ Configuration Reference
 
-All configuration is driven by the `.env` file, which is shared by all containers via `env_file`. Below is the full reference:
+Runtime configuration in `config.py` reads the following `.env` variables:
 
 | Variable | Required | Description |
 |---|---|---|
 | `DOWNLOADER_BOT_TOKEN` | ✅ Yes | Your Telegram Bot Token from @BotFather |
-| `BOT_PASSWORD` | ✅ Yes | Password users must enter to authenticate |
-| `TELEGRAM_API_ID` | ✅ Yes | App API ID from [my.telegram.org](https://my.telegram.org) (required by Local Bot API) |
-| `TELEGRAM_API_HASH` | ✅ Yes | App API Hash from [my.telegram.org](https://my.telegram.org) (required by Local Bot API) |
-| `TELEGRAM_LOCAL` | ✅ Yes | Must be set to `1` to enable local API mode |
-| `RCLONE_CONFIG_PATH` | ⬜ Optional | Path to `rclone.conf` inside container |
+| `DRIVE_FOLDER_ID` | ⬜ Optional | Default Google Drive root folder ID for admin uploads |
+| `ADMIN_ID` | ✅ Yes | Telegram numeric user ID for the bot administrator |
+| `REGISTRATION_OPEN` | ⬜ Optional | `true/false` toggle for self-registration on `/start` |
+| `MAX_DAILY_FILES` | ⬜ Optional | Default daily file-count quota per user |
+| `MAX_DAILY_BYTES` | ⬜ Optional | Default daily byte quota per user |
+| `COLAB_URL` | ⬜ Optional | Colab link shown for Drive onboarding |
+| `MAX_CONCURRENT_DOWNLOADS` | ⬜ Optional | Parallel download worker limit |
+| `TELEGRAM_LOCAL` | ⬜ Optional | `1/true` enables local Bot API mode; `0/false` uses cloud Bot API |
+
+`start.sh` also collects `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` for local Bot API server deployment.
 
 ---
 
@@ -312,8 +302,12 @@ All persistent data lives **on the host machine** via Docker bind mounts, ensuri
 | `./downloads` | `/root/downloads` | Both containers | Shared file staging area (the 2GB transfer bridge) |
 | `./cookies` | `/root/cookies` | `telegram-bot` | Netscape-format cookie files |
 | `./cookies_enabled.json` | `/root/cookies_enabled.json` | `telegram-bot` | Cookie activation state |
-| `./.config/rclone` | `/root/.config/rclone` | `telegram-bot` | Rclone Google Drive credentials |
-| `./bot` | `/app` | `telegram-bot` | **Live-mounted** bot source code (Git repo) |
+| `./rclone.conf` | `/root/.config/rclone/rclone.conf` | `telegram-bot` | Default Google Drive rclone config file |
+| `./user_configs` | `/app/user_configs` | `telegram-bot` | SQLite DB and per-user config files |
+| `.` | `/app` | `telegram-bot` | **Live-mounted** bot source code |
+| `./telegram-bot-api-data` | `/var/lib/telegram-bot-api` (ro) | `telegram-bot` | Read-only local API file store for direct file reads |
+
+The two `telegram-bot-api-data` mounts are only used when Local API mode is enabled (`TELEGRAM_LOCAL=1`).
 
 > **Tip:** To perform a clean reinstall without losing user data, rebuild only the image: `docker compose build && docker compose up -d`
 
@@ -341,8 +335,8 @@ docker restart telegram-bot
 
 ## 🔒 Security Notes
 
-- **Access Control:** The bot enforces mandatory password authentication. Only users who provide the correct `BOT_PASSWORD` can interact with it.
-- **Secret Management:** `BOT_PASSWORD`, `DOWNLOADER_BOT_TOKEN`, `TELEGRAM_API_ID`, and `TELEGRAM_API_HASH` are loaded from `.env`, which is excluded from version control. **Never commit your `.env` file.**
+- **Access Control:** The bot enforces approval-based access control. Users are admitted through `REGISTRATION_OPEN` policy and/or admin approval.
+- **Secret Management:** Keep `.env` out of version control. At minimum it contains bot token and deployment/runtime settings.
 - **Local API Isolation:** The Local Telegram Bot API server only listens on `localhost:8081`. It is not exposed to the public internet.
 - **Cookie Safety:** The cookie manager handles `.txt` tokens safely. Keep your cookie files secure and never expose them publicly.
 - **Rclone Config:** Your `rclone.conf` contains Google account credentials. It is mounted into the container and should never be committed to Git.
@@ -354,11 +348,14 @@ docker restart telegram-bot
 <details>
 <summary><strong>🔴 The bot is not responding after deployment</strong></summary>
 
-1. Check that all containers are running: `docker ps`
-2. View bot logs for errors: `docker logs -f telegram-bot`
-3. View Local API logs: `docker logs -f telegram-bot-api`
-4. Verify your `DOWNLOADER_BOT_TOKEN` in `.env` is correct and has no extra spaces.
-5. Confirm `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, and `TELEGRAM_LOCAL=1` are all set in `.env`.
+1. Check services with the same compose file you launched with:
+   - Manual: `docker compose ps`
+   - `start.sh`: `docker compose -f .start.compose.yml ps`
+2. View bot logs:
+   - Manual: `docker compose logs -f telegram-bot`
+   - `start.sh`: `docker compose -f .start.compose.yml logs -f telegram-bot`
+3. If local mode is enabled (`TELEGRAM_LOCAL=1`), also check `telegram-bot-api` logs.
+4. Verify `DOWNLOADER_BOT_TOKEN` in `.env` is valid and has no extra spaces.
 
 </details>
 
@@ -377,9 +374,46 @@ The standard Telegram Bot API caps file uploads at **50 MB**. This project runs 
 <details>
 <summary><strong>🔴 Google Drive upload fails</strong></summary>
 
-1. Confirm `rclone.conf` exists at the host path `/root/.config/rclone/rclone.conf`.
+1. Confirm `./rclone.conf` exists in the project root and is a **file**.
 2. Run `docker exec telegram-bot rclone listremotes` to verify rclone sees your remote.
 3. Check that your configured Drive remote has write access to the target folder.
+
+</details>
+
+<details>
+<summary><strong>🔴 `[Errno 21] Is a directory` for `cookies_enabled.json` or `rclone.conf`</strong></summary>
+
+Docker can create missing bind-mount targets as directories. Ensure both paths exist as files on the host:
+
+```bash
+test -f cookies_enabled.json || printf "{}" > cookies_enabled.json
+test -f rclone.conf || touch rclone.conf
+```
+
+If either path is currently a directory, remove it and recreate it as a file before restarting containers.
+
+</details>
+
+<details>
+<summary><strong>🔴 Local Bot API download fails with 404 for Telegram files</strong></summary>
+
+In local mode, `bot.get_file()` may return a relative path (for example `videos/file_6.mp4`). The bot must reconstruct an absolute path under `/var/lib/telegram-bot-api/...` before reading.
+
+This project already includes that guard, and it depends on this mount in `telegram-bot`:
+
+```yaml
+- ./telegram-bot-api-data:/var/lib/telegram-bot-api:ro
+```
+
+If you removed that mount, put it back and restart.
+
+</details>
+
+<details>
+<summary><strong>🔴 Drive uploads fail because folder ID env key is ignored</strong></summary>
+
+Use exact env key casing: `DRIVE_FOLDER_ID` (uppercase `ID`).  
+Wrong casing like `DRIVE_FOLDER_iD` will not be read by runtime config.
 
 </details>
 

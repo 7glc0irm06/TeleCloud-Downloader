@@ -25,9 +25,10 @@ chmod +x start.sh
 
 - Installs/checks required tools and Docker stack
 - Creates required folders/files safely
-- Collects required bot settings (`DOWNLOADER_BOT_TOKEN`, `BOT_PASSWORD`, `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `ADMIN_ID`)
+- Collects required bot settings (`DOWNLOADER_BOT_TOKEN`, `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `ADMIN_ID`)
 - Supports re-setup mode to review/edit existing `.env` values
 - Lets you choose Local Bot API mode and Google Drive mode
+- Uses approval-based access control (`REGISTRATION_OPEN` + admin approval flow)
 - Shows a summary and asks confirmation before launch
 - Starts containers with an auto-generated runtime compose file
 

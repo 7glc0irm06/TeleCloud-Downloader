@@ -43,7 +43,6 @@ At minimum:
 
 ```env
 DOWNLOADER_BOT_TOKEN=...
-BOT_PASSWORD=...
 TELEGRAM_API_ID=...
 TELEGRAM_API_HASH=...
 TELEGRAM_LOCAL=1
@@ -70,7 +69,7 @@ What `start.sh` does:
 
 - Checks project context and validates required paths/files
 - Installs/checks server dependencies (`git`, `curl`, `unzip`, Docker, Docker Compose)
-- Prompts for required `.env` variables (token, password, API ID/hash, admin ID)
+- Prompts for required `.env` variables (token, API ID/hash, admin ID)
 - Fills safe defaults for advanced settings
 - Guides Google Drive setup (`rclone.conf`) with Colab fallback instructions
 - Enforces `./rclone.conf` placeholder file if Drive setup is skipped (prevents Docker directory-mount crash)

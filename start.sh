@@ -261,7 +261,7 @@ set_default_if_missing() {
 }
 
 all_required_present() {
-  for key in DOWNLOADER_BOT_TOKEN BOT_PASSWORD TELEGRAM_API_ID TELEGRAM_API_HASH ADMIN_ID; do
+  for key in DOWNLOADER_BOT_TOKEN TELEGRAM_API_ID TELEGRAM_API_HASH ADMIN_ID; do
     if [ -z "$(env_get "$key" || true)" ]; then
       return 1
     fi
@@ -423,13 +423,11 @@ fi
 
 if [ "$review_mode" -eq 1 ]; then
   review_or_edit_env "DOWNLOADER_BOT_TOKEN" "Enter DOWNLOADER_BOT_TOKEN (from @BotFather)" 0 0
-  review_or_edit_env "BOT_PASSWORD" "Enter BOT_PASSWORD (users must send this to access bot)" 1 0
   review_or_edit_env "TELEGRAM_API_ID" "Enter TELEGRAM_API_ID (from my.telegram.org)" 0 1
   review_or_edit_env "TELEGRAM_API_HASH" "Enter TELEGRAM_API_HASH (from my.telegram.org)" 0 0
   review_or_edit_env "ADMIN_ID" "Enter ADMIN_ID (your Telegram numeric user id)" 0 1
 else
   ensure_required_env "DOWNLOADER_BOT_TOKEN" "Enter DOWNLOADER_BOT_TOKEN (from @BotFather)" 0 0
-  ensure_required_env "BOT_PASSWORD" "Enter BOT_PASSWORD (users must send this to access bot)" 1 0
   ensure_required_env "TELEGRAM_API_ID" "Enter TELEGRAM_API_ID (from my.telegram.org)" 0 1
   ensure_required_env "TELEGRAM_API_HASH" "Enter TELEGRAM_API_HASH (from my.telegram.org)" 0 0
   ensure_required_env "ADMIN_ID" "Enter ADMIN_ID (your Telegram numeric user id)" 0 1
