@@ -10,7 +10,23 @@ This guide is for beginners who want a one-command setup on Ubuntu/Debian.
 - Ubuntu/Debian server
 - Internet access
 - A user with `sudo` access
-- Project already extracted/cloned
+
+## Get the Project
+
+Clone the repository from GitHub:
+
+```bash
+git clone https://github.com/parsa-f/TeleCloud-Downloader.git
+cd TeleCloud-Downloader
+```
+
+Or download and extract the ZIP:
+
+```bash
+curl -L https://github.com/parsa-f/TeleCloud-Downloader/archive/refs/heads/main.zip -o telecloud.zip
+unzip telecloud.zip
+cd TeleCloud-Downloader-main
+```
 
 ## Run the installer
 

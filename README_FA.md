@@ -1,4 +1,4 @@
-﻿<div align="center" dir="rtl">
+<div align="center" dir="rtl">
   <h1>☁️ TeleCloud-Downloader</h1>
   <p><strong>ربات مدیریت دانلود پیشرفته، کاملاً ماژولار و ناهمگام (Asynchronous) تلگرام</strong></p>
 
@@ -29,37 +29,60 @@
 - [🛠️ تکنولوژی‌ها](#-تکنولوژیها)
 - [🚀 نصب و راه‌اندازی](#-نصب-و-راهاندازی)
 - [💬 نحوه استفاده و دستورات](#-نحوه-استفاده-و-دستورات)
-- [⚙️ راهنمای کامل متغیرهای محیطی](#-راهنمای-کامل-متغیرهای-محیطی)
+- [⚙️ راهنمای متغیرهای محیطی](#-راهنمای-متغیرهای-محیطی)
 - [📁 ساختار پروژه](#-ساختار-پروژه)
 - [💾 پایداری داده‌ها و ولوم‌ها](#-پایداری-دادهها-و-ولومها)
-- [🔄 به‌روزرسانی ربات](#-بهروزرسانی-ربات)
 - [🔒 نکات امنیتی](#-نکات-امنیتی)
 - [🐛 عیب‌یابی و سوالات متداول](#-عیبیابی-و-سوالات-متداول)
-- [🤝 مشارکت در توسعه](#-مشارکت-در-توسعه)
 - [📄 لایسنس](#-لایسنس)
 
 ---
 
 ## ✨ ویژگی‌ها
 
+### ☁️ یکپارچه‌سازی Google Drive با Rclone
+فایل‌های دانلودشده را می‌توانید با Rclone مستقیماً در Google Drive آپلود کنید و بر اساس تنظیمات، مقصد را بین Telegram و Drive تغییر دهید.
+
+---
+
 ### 🔥 سرور محلی Telegram Bot API — بدون محدودیت حجم فایل
 > این مهم‌ترین ویژگی معماری TeleCloud-Downloader است.
 
-برخلاف ربات‌های معمولی که با محدودیت پیش‌فرض تلگرام (**۲۰ مگابایت دانلود / ۵۰ مگابایت آپلود**) مواجه هستند، TeleCloud-Downloader یک **سرور محلی Telegram Bot API** (`aiogram/telegram-bot-api`) روی خود سرور اجرا می‌کند. این معماری کاملاً محدودیت‌های فضای ابری تلگرام را دور می‌زند:
+برخلاف ربات‌های معمولی که با محدودیت پیش‌فرض تلگرام (**۲۰ مگابایت دانلود / ۵۰ مگابایت آپلود**) مواجه هستند، TeleCloud-Downloader یک **سرور محلی Telegram Bot API** (`aiogram/telegram-bot-api`) روی خود سرور اجرا می‌کند. این معماری محدودیت‌های فضای ابری تلگرام را دور می‌زند:
 
-- **📦 پشتیبانی از فایل‌های تا ۲ گیگابایت** — دانلود و ارسال فایل‌های بسیار بزرگ ویدیویی، صوتی و آرشیو بدون هیچ محدودیتی.
-- **⚡ انتقال فایل فوری و محلی** — در حالت محلی، دستور `getFile` مسیر فیزیکی فایل روی دیسک را برمی‌گرداند. ربات از طریق **ولوم اشتراکی Docker** (`/root/downloads`) و با `shutil.copy2` فایل‌ها را بین کانتینرها منتقل می‌کند — بدون دانلود مجدد از HTTP، بدون سربار شبکه.
-- **🔒 خصوصی و مستقل** — تمام ترافیک API روی سرور خودتان باقی می‌ماند (`http://localhost:8081`) و هرگز به API ابری تلگرام متصل نمی‌شود.
+- **📦 پشتیبانی از فایل‌های تا ۲ گیگابایت** — دانلود و ارسال فایل‌های بسیار بزرگ ویدیویی، صوتی و آرشیو.
+- **⚡ انتقال فایل سریع در حالت محلی** — در حالت local، ربات فایل‌ها را مستقیم از مسیر اشتراکی Local Bot API (`/var/lib/telegram-bot-api`) می‌خواند و فقط در صورت نیاز به fallback از cloud download استفاده می‌کند.
+- **🔒 خصوصی و مستقل** — تمام ترافیک API روی سرور خودتان باقی می‌ماند (`http://localhost:8081`) و به API ابری تلگرام متصل نمی‌شود.
 
 ---
 
 ### 🚀 دانلودر چند موتوره
-- **موتور yt-dlp** — دانلود پرسرعت و پایدار از یوتیوب، ساندکلاد، ایکس (توییتر)، اینستاگرام و صدها پلتفرم دیگر.
-- **موتور تورنت** — پردازش مستقیم و دانلود از طریق مگنت‌لینک‌های BitTorrent.
-- **دانلودر لینک مستقیم** — دانلود سریع و بهینه برای لینک‌های HTTP/HTTPS مستقیم.
 
-### ☁️ مقاصد آپلود هوشمند
-امکان جابجایی لحظه‌ای بین **آپلود مستقیم در تلگرام** و **آپلود خودکار در گوگل درایو** از طریق Rclone.
+#### 🌐 سایت‌های پشتیبانی‌شده (yt-dlp)
+با استفاده از [yt-dlp](https://github.com/yt-dlp/yt-dlp)، ربات از **هزاران وب‌سایت** پشتیبانی می‌کند. محبوب‌ترین‌ها:
+
+| پلتفرم | نوع محتوا |
+|---|---|
+| YouTube | Videos, Playlists, Shorts, Live streams |
+| Instagram | Reels, Posts, Stories, IGTV |
+| X (Twitter) | Videos, GIFs |
+| TikTok | Videos |
+| SoundCloud | Tracks, Playlists |
+| Vimeo | Videos |
+| Dailymotion | Videos |
+| Reddit | Videos, GIFs |
+| Pinterest | Videos |
+| Twitch | Clips, VODs |
+| Facebook | Videos, Reels |
+
+
+> این فقط بخشی از قابلیت‌هاست — [yt-dlp از 1000+ سایت پشتیبانی می‌کند](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md). هر URL که با yt-dlp کار کند، اینجا هم کار می‌کند.
+
+#### 🧲 Torrent و Magnet Link
+هر **BitTorrent magnet link** (`magnet:?xt=urn:btih:...`) را مستقیم برای ربات بفرستید. موتور torrent محتوا را دانلود کرده و به Telegram یا Google Drive تحویل می‌دهد — بدون نیاز به torrent client در سمت شما.
+
+#### 🔗 دانلودر لینک مستقیم
+هر URL مستقیم HTTP/HTTPS را بفرستید و ربات همان فایل را مستقیم دانلود می‌کند — PDF، ZIP، MP4 یا هر نوع فایل دیگر.
 
 ### 🎛️ پنل تنظیمات پیشرفته
 - **حالت ویدیو:** جابجایی بین فرمت‌های `mp4`، `mkv` یا `default`
@@ -68,42 +91,40 @@
 - **کیفیت صدا:** 128 kbps / 192 kbps / 320 kbps
 
 ### 📝 ادغام هوشمند زیرنویس (Muxing)
-پشتیبانی از چسباندن (Hard-sub) و قرار دادن (Soft-sub) زیرنویس‌های فارسی و انگلیسی از طریق FFmpeg، با سیستم جایگزین (Fallback) — در صورت نبود زیرنویس، ربات کرش نمی‌کند بلکه ویدیو را بدون زیرنویس ارسال کرده و کاربر را مطلع می‌سازد.
+پشتیبانی از Hard-sub و Soft-sub برای زیرنویس فارسی/انگلیسی با FFmpeg. در صورت نبود زیرنویس، ربات کرش نمی‌کند و ویدیو بدون زیرنویس ارسال می‌شود.
 
-### ⏱️ استخراج چپترهای یوتیوب
-استخراج و تزریق خودکار چپترها (Chapters) و زمان‌بندی‌های یوتیوب به داخل فایل ویدیویی با استفاده از متادیتای FFmpeg.
+### ⏱️ استخراج Chapter یوتیوب
+استخراج و تزریق خودکار Chapterهای یوتیوب در فایل نهایی ویدیو با متادیتای FFmpeg.
 
 ### 🌐 رابط کاربری دوزبانه و 🍪 مدیریت کوکی
-بومی‌سازی کامل به فارسی و انگلیسی. سیستم مدیریت کوکی تعاملی (آپلود فایل `.txt`) برای دور زدن محدودیت‌های سنی یا دسترسی به محتوای خصوصی.
+رابط کاربری کامل فارسی/انگلیسی. همچنین سیستم مدیریت کوکی تعاملی (آپلود فایل `.txt`) برای دسترسی به محتوای محدودشده.
 
 ---
 
 ## 🏗️ معماری کلی سیستم
 
-TeleCloud-Downloader به عنوان یک **اپلیکیشن چند کانتینری Docker** با استفاده از `docker-compose` مدیریت می‌شود. چهار کانتینر همواره در حال اجرا هستند:
+TeleCloud-Downloader با دو حالت استقرار اجرا می‌شود:
 
-```
+- **حالت Local API (`TELEGRAM_LOCAL=1`)**: `telegram-bot` + `telegram-bot-api`
+- **حالت Cloud API (`TELEGRAM_LOCAL=0`)**: فقط `telegram-bot`
+
+معماری در حالت Local API:
+
+```text
 ┌─────────────────────────────────────────────────────────────┐
-│               Docker Host (شبکه: Host Network)              │
+│                    Docker Host (Host Network)              │
 │                                                             │
 │  ┌────────────────────┐    ┌─────────────────────────────┐  │
-│  │  telegram-bot-api  │    │       telegram-bot           │  │
-│  │  (سرور API محلی)   │    │    (ربات دانلودر)           │  │
-│  │  پورت: 8081        │◄───│  ارتباط از طریق localhost   │  │
-│  │  aiogram/tg-bot-api│    │  parsafadaeei/telegram-bot  │  │
+│  │  telegram-bot-api  │    │       telegram-bot          │  │
+│  │  Port: 8081        │◄───│  Uses localhost Bot API     │  │
 │  └────────────┬───────┘    └────────────┬────────────────┘  │
 │               │                          │                   │
 │               └──────────────────────────┘                   │
-│           ولوم اشتراکی: /root/downloads                      │
-│       (انتقال فایل با shutil.copy2، بدون HTTP)               │
-│                                                             │
-│  ┌──────────────────┐    ┌──────────────────────────────┐   │
-│  │   goose-server   │    │       goose-manager          │   │
-│  └──────────────────┘    └──────────────────────────────┘   │
+│      Shared local API storage: /var/lib/telegram-bot-api    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**نکته کلیدی طراحی:** هر دو کانتینر از `network_mode: host` و ولوم مشترک `/root/downloads` استفاده می‌کنند. وقتی سرور API محلی فایلی را ذخیره می‌کند، ربات آن را از **همان مسیر فیزیکی روی دیسک** با `shutil.copy2` می‌خواند — آپلود تقریباً آنی، صرف نظر از حجم فایل.
+**جزئیات مهم در runtime:** در حالت local ممکن است `bot.get_file()` مسیر نسبی برگرداند. ربات مسیر مطلق را زیر `/var/lib/telegram-bot-api/...` بازسازی می‌کند و در صورت نیاز fallback به cloud download دارد.
 
 ---
 
@@ -115,120 +136,44 @@ TeleCloud-Downloader به عنوان یک **اپلیکیشن چند کانتین
 | **زبان برنامه‌نویسی** | Python 3.11+ | زبان اصلی اپلیکیشن |
 | **فریمورک ربات** | pyTelegramBotAPI | یکپارچه‌سازی با Telegram Bot API |
 | **موتور دانلود** | yt-dlp | دانلود از پلتفرم‌های متعدد |
-| **پردازش رسانه** | FFmpeg | ادغام زیرنویس، چپتر، انکودینگ |
+| **پردازش رسانه** | FFmpeg | ادغام زیرنویس، chapter، encoding |
 | **کانتینرسازی** | Docker + Docker Compose | مدیریت کامل سرویس‌ها |
-| **فضای ابری** | Rclone | یکپارچه‌سازی با گوگل درایو |
-| **کنترل نسخه** | Git + GitHub | جریان کار استقرار مبتنی بر نسخه |
+| **فضای ابری** | Rclone | یکپارچه‌سازی با Google Drive |
+| **کنترل نسخه** | Git + GitHub | جریان کار مبتنی بر نسخه |
 
 ---
 
 ## 🚀 نصب و راه‌اندازی
 
-> **`Dockerfile` و `docker-compose.yml` در مخزن موجود هستند.** کافیست clone کنید، پیکربندی نمایید و اجرا کنید.
+راهنمای مناسب شرایط خود را انتخاب کنید:
 
-### مرحله ۱ — پیش‌نیازها
-
-موارد زیر باید روی سرور شما (Ubuntu/Linux توصیه می‌شود) نصب باشند:
-
-- [Docker Engine](https://docs.docker.com/engine/install/)
-- [Docker Compose Plugin](https://docs.docker.com/compose/install/) (`docker compose` نسخه ۲)
-- Git
-
-### مرحله ۲ — کلون کردن مخزن
-
-```bash
-git clone https://github.com/parsa-f/TeleCloud-Downloader.git
-cd TeleCloud-Downloader
-```
-
-برای اجرای محلی (بدون Docker)، وابستگی‌های پایتون را با دستور زیر نصب کنید:
-
-```bash
-pip install -r requirements.txt
-```
-
-### مرحله ۳ — پیکربندی متغیرهای محیطی
-
-یک فایل `.env` در مسیر اصلی پروژه ایجاد کنید. این فایل **از Git مستثنی شده** (از طریق `.gitignore`) و هرگز commit نمی‌شود.
-
-```env
-# ─── اطلاعات ربات تلگرام ──────────────────────────────────
-DOWNLOADER_BOT_TOKEN=your_telegram_bot_token_here
-BOT_PASSWORD=your_secure_access_password
-
-# ─── سرور محلی Telegram Bot API (الزامی برای پشتیبانی از ۲ گیگابایت) ─
-TELEGRAM_API_ID=your_api_id_from_my.telegram.org
-TELEGRAM_API_HASH=your_api_hash_from_my.telegram.org
-TELEGRAM_LOCAL=1
-
-# ─── اختیاری ──────────────────────────────────────────────
-# مسیر فایل rclone در داخل کانتینر (مقدار پیش‌فرض نمایش داده شده)
-RCLONE_CONFIG_PATH=/root/.config/rclone/rclone.conf
-```
-
-> **نحوه دریافت `TELEGRAM_API_ID` و `TELEGRAM_API_HASH`:**  
-> وارد [my.telegram.org](https://my.telegram.org) شوید، به بخش **API Development Tools** بروید و یک اپلیکیشن بسازید. `api_id` و `api_hash` را کپی کنید.
-
-> **نحوه دریافت توکن ربات:**  
-> [@BotFather](https://t.me/BotFather) را در تلگرام باز کنید، `/newbot` را ارسال کنید و توکن ارائه شده را کپی نمایید.
-
-### مرحله ۴ — پیکربندی Rclone (برای گوگل درایو)
-
-اگر قصد استفاده از آپلود به گوگل درایو را دارید، فایل `rclone.conf` را در مسیر میزبان قرار دهید: `/root/.config/rclone/rclone.conf`. فایل `docker-compose.yml` این دایرکتوری را داخل کانتینر mount می‌کند.
-
-```bash
-# اجرای پیکربندی جدید rclone:
-rclone config   # سپس به گوگل درایو مجوز بدهید
-
-# یا کپی پیکربندی موجود:
-cp ~/.config/rclone/rclone.conf /root/.config/rclone/rclone.conf
-```
-
-> اگر از گوگل درایو استفاده نمی‌کنید، این مرحله را می‌توانید رد کنید. ربات فقط با آپلود تلگرام نیز کار می‌کند.
-
-### مرحله ۵ — Build و اجرا
-
-```bash
-docker compose up -d --build
-```
-
-تأیید اجرای همه ۴ کانتینر:
-
-```bash
-docker compose ps
-# یا
-docker ps
-```
-
-مشاهده لاگ‌های زنده:
-
-```bash
-docker logs -f telegram-bot
-docker logs -f telegram-bot-api
-```
+| راهنما | مناسب برای |
+|---|---|
+| [⚡ QUICKSTART_FA.md](./QUICKSTART_FA.md) | راه‌اندازی اولیه روی Ubuntu/Debian با نصب‌کننده یک‌دستوری (`start.sh`) |
+| [🛠️ SETUP_FA.md](./SETUP_FA.md) | راه‌اندازی دستی Docker، تنظیمات پیشرفته، اجرای محلی بدون Docker |
 
 ---
 
 ## 💬 نحوه استفاده و دستورات
 
-### احراز هویت
+### احراز دسترسی
 
-ربات با رمز عبور محافظت شده است. در اولین استفاده، رمزی که در `BOT_PASSWORD` تنظیم کرده‌اید را برای ربات ارسال کنید:
+کنترل دسترسی مبتنی بر تایید (approval) است:
 
-```
-your_secure_access_password
-```
+- `ADMIN_ID` همیشه دسترسی دارد.
+- اگر `REGISTRATION_OPEN=true` باشد، کاربران جدید در `/start` خودکار تایید می‌شوند.
+- اگر `REGISTRATION_OPEN=false` باشد، کاربر باید `/start` بزند و درخواست دسترسی بدهد تا ادمین تایید/رد کند.
 
 ### دانلود رسانه
 
-هر URL پشتیبانی‌شده یا مگنت‌لینک را مستقیماً برای ربات ارسال کنید:
+هر URL پشتیبانی‌شده یا magnet link را مستقیم برای ربات بفرستید:
 
 | نوع ورودی | مثال |
 |---|---|
-| ویدیوی یوتیوب | `https://www.youtube.com/watch?v=...` |
-| پلی‌لیست یوتیوب | `https://www.youtube.com/playlist?list=...` |
+| ویدیوی YouTube | `https://www.youtube.com/watch?v=...` |
+| پلی‌لیست YouTube | `https://www.youtube.com/playlist?list=...` |
 | SoundCloud / Instagram / X | هر URL پشتیبانی‌شده توسط yt-dlp |
-| مگنت‌لینک تورنت | `magnet:?xt=urn:btih:...` |
+| Magnet Link تورنت | `magnet:?xt=urn:btih:...` |
 | لینک مستقیم فایل | `https://example.com/largefile.mp4` |
 
 ### پنل تنظیمات
@@ -238,33 +183,38 @@ your_secure_access_password
 | تنظیم | گزینه‌ها |
 |---|---|
 | **حالت رسانه** | 🎬 ویدیو / 🎵 صدا |
-| **کیفیت ویدیو** | 480p / 720p / 1080p / 1440p / 2160p / بهترین |
-| **فرمت ویدیو** | MP4 / MKV / پیش‌فرض |
+| **کیفیت ویدیو** | 480p / 720p / 1080p / 1440p / 2160p / Best |
+| **فرمت ویدیو** | MP4 / MKV / Default |
 | **کیفیت صدا** | 128 kbps / 192 kbps / 320 kbps |
-| **فرمت صدا** | MP3 / M4A / FLAC / پیش‌فرض |
-| **مقصد آپلود** | 📨 تلگرام / ☁️ گوگل درایو |
-| **زیرنویس** | خاموش / انگلیسی / فارسی |
-| **چپتر** | روشن / خاموش |
-| **حالت دانلود** | خودکار / yt-dlp / تورنت / مستقیم |
+| **فرمت صدا** | MP3 / M4A / FLAC / Default |
+| **مقصد آپلود** | 📨 Telegram / ☁️ Google Drive |
+| **زیرنویس** | Off / English / Persian |
+| **Chapter** | On / Off |
+| **حالت دانلود** | Auto / yt-dlp / Torrent / Direct |
 
 ### مدیریت کوکی
 
-برای دور زدن محدودیت‌های سنی یا دسترسی به محتوای خصوصی، یک فایل `.txt` کوکی با فرمت **Netscape** مستقیماً برای ربات آپلود کنید. مدیر کوکی آن را پردازش و ذخیره می‌کند.
+برای دور زدن محدودیت‌های سنی یا دسترسی به محتوای خصوصی، فایل کوکی `.txt` با فرمت **Netscape** را مستقیم در چت ربات آپلود کنید.
 
 ---
 
-## ⚙️ راهنمای کامل متغیرهای محیطی
+## ⚙️ راهنمای متغیرهای محیطی
 
-تمام پیکربندی از طریق فایل `.env` مدیریت می‌شود که توسط همه کانتینرها از طریق `env_file` به اشتراک گذاشته می‌شود:
+پیکربندی runtime در `config.py` این متغیرهای `.env` را می‌خواند:
 
 | متغیر | الزامی | توضیح |
 |---|---|---|
-| `DOWNLOADER_BOT_TOKEN` | ✅ بله | توکن ربات تلگرام از @BotFather |
-| `BOT_PASSWORD` | ✅ بله | رمز عبور برای احراز هویت کاربران |
-| `TELEGRAM_API_ID` | ✅ بله | App API ID از [my.telegram.org](https://my.telegram.org) (مورد نیاز سرور API محلی) |
-| `TELEGRAM_API_HASH` | ✅ بله | App API Hash از [my.telegram.org](https://my.telegram.org) (مورد نیاز سرور API محلی) |
-| `TELEGRAM_LOCAL` | ✅ بله | باید `1` باشد تا حالت API محلی فعال شود |
-| `RCLONE_CONFIG_PATH` | ⬜ اختیاری | مسیر فایل `rclone.conf` داخل کانتینر |
+| `DOWNLOADER_BOT_TOKEN` | ✅ بله | توکن ربات Telegram از @BotFather |
+| `DRIVE_FOLDER_ID` | ⬜ اختیاری | شناسه پوشه پیش‌فرض Google Drive برای آپلودهای ادمین |
+| `ADMIN_ID` | ✅ بله | شناسه عددی کاربر Telegram ادمین |
+| `REGISTRATION_OPEN` | ⬜ اختیاری | فعال/غیرفعال بودن self-registration در `/start` |
+| `MAX_DAILY_FILES` | ⬜ اختیاری | سقف تعداد فایل روزانه پیش‌فرض هر کاربر |
+| `MAX_DAILY_BYTES` | ⬜ اختیاری | سقف حجم روزانه پیش‌فرض هر کاربر |
+| `COLAB_URL` | ⬜ اختیاری | لینک Colab نمایش‌داده‌شده در onboarding درایو |
+| `MAX_CONCURRENT_DOWNLOADS` | ⬜ اختیاری | سقف دانلودهای همزمان |
+| `TELEGRAM_LOCAL` | ⬜ اختیاری | `1/true` برای Local Bot API و `0/false` برای Cloud Bot API |
+
+`start.sh` همچنین `TELEGRAM_API_ID` و `TELEGRAM_API_HASH` را برای استقرار Local Bot API جمع‌آوری می‌کند.
 
 ---
 
@@ -273,40 +223,38 @@ your_secure_access_password
 ```text
 TeleCloud-Downloader/
 ├── Dockerfile                  # تعریف build کانتینر ربات
-├── docker-compose.yml          # مدیریت کامل سرویس‌های چند کانتینری
+├── docker-compose.yml          # مدیریت کامل سرویس‌های چندکانتینری
 ├── .env                        # (از Git مستثنی) اسرار و اطلاعات API
 ├── .gitignore                  # downloads/، cookies، .env و JSON DB را حذف می‌کند
 ├── main.py                     # نقطه ورود ربات — همیشه از اینجا اجرا می‌شود
 ├── config.py                   # تمام تنظیمات، وضعیت مشترک، شیء ربات
 ├── handlers.py                 # کنترل‌کننده پیام‌ها و دستورات
 ├── callbacks.py                # پردازش callback query دکمه‌های inline
-├── menu.py                     # سازنده‌های منو و صفحه‌کلید تلگرام
-├── playlist_menu.py            # منوهای مخصوص پلی‌لیست یوتیوب
-├── dest_helpers.py             # مسیریابی مقصد آپلود (تلگرام یا درایو)
+├── menu.py                     # سازنده‌های منو و صفحه‌کلید Telegram
+├── playlist_menu.py            # منوهای مخصوص پلی‌لیست YouTube
+├── dest_helpers.py             # مسیریابی مقصد آپلود (Telegram یا Drive)
 ├── downloader_queue.py         # صف async وظایف و مدیریت worker
 ├── cookies.py                  # منطق مدیریت کوکی
 ├── utils.py                    # توابع کمکی و اشتراکی
 ├── user_langs.py               # ذخیره‌سازی زبان هر کاربر
 ├── downloaders/                # موتورهای دانلود
 │   ├── __init__.py
-│   ├── youtube.py              #   yt-dlp (یوتیوب، پلتفرم‌های اجتماعی)
+│   ├── youtube.py              #   yt-dlp (YouTube، شبکه‌های اجتماعی)
 │   ├── social.py               #   کنترل‌کننده پلتفرم‌های اجتماعی
-│   ├── torrent.py              #   موتور BitTorrent / مگنت‌لینک
+│   ├── torrent.py              #   موتور BitTorrent / magnet link
 │   └── direct.py              #   دانلودر مستقیم HTTP
 └── uploaders/                  # موتورهای آپلود
     ├── __init__.py
-    ├── telegram_upload.py      #   آپلودر از طریق Local Telegram API
-    ├── gdrive_upload.py        #   آپلودر Rclone / گوگل درایو
+    ├── telegram_upload.py      #   آپلود از طریق Local Telegram API
+    ├── gdrive_upload.py        #   آپلود Rclone / Google Drive
     └── smart_dest.py          #   منطق مسیریابی مقصد
 ```
-
-> ⚠️ **مهم:** هرگز فایلی با نام `queue.py` داخل پوشه ربات ایجاد نکنید. این نام با ماژول استاندارد کتابخانه Python تداخل دارد. پیاده‌سازی صف در این پروژه `downloader_queue.py` نام دارد.
 
 ---
 
 ## 💾 پایداری داده‌ها و ولوم‌ها
 
-تمام داده‌های پایدار **روی ماشین میزبان** از طریق bind mount های Docker ذخیره می‌شوند و از ری‌استارت کانتینر و rebuild ایمیج در امان هستند:
+تمام داده‌های پایدار روی ماشین میزبان با bind mount های Docker نگه‌داری می‌شوند:
 
 | مسیر میزبان | مسیر کانتینر | سرویس | محتوا |
 |---|---|---|---|
@@ -314,146 +262,107 @@ TeleCloud-Downloader/
 | `./downloads` | `/root/downloads` | هر دو کانتینر | فضای مشترک فایل (پل انتقال ۲ گیگابایتی) |
 | `./cookies` | `/root/cookies` | `telegram-bot` | فایل‌های کوکی با فرمت Netscape |
 | `./cookies_enabled.json` | `/root/cookies_enabled.json` | `telegram-bot` | وضعیت فعال‌سازی کوکی |
-| `./.config/rclone` | `/root/.config/rclone` | `telegram-bot` | اطلاعات احراز هویت گوگل درایو |
-| `./bot` | `/app` | `telegram-bot` | کد منبع ربات (Live mount — مخزن Git) |
+| `./rclone.conf` | `/root/.config/rclone/rclone.conf` | `telegram-bot` | فایل پیش‌فرض rclone برای Google Drive |
+| `./user_configs` | `/app/user_configs` | `telegram-bot` | پایگاه‌داده SQLite و تنظیمات هر کاربر |
+| `.` | `/app` | `telegram-bot` | کد منبع ربات (Live mount) |
+| `./telegram-bot-api-data` | `/var/lib/telegram-bot-api` (ro) | `telegram-bot` | ذخیره‌ساز local API به‌صورت read-only برای خواندن مستقیم فایل |
 
-> **نکته:** برای نصب مجدد بدون از دست دادن داده‌های کاربر، فقط ایمیج را rebuild کنید: `docker compose build && docker compose up -d`
+دو mount مربوط به `telegram-bot-api-data` فقط وقتی استفاده می‌شوند که Local API mode فعال باشد (`TELEGRAM_LOCAL=1`).
 
----
-
-## 🔄 به‌روزرسانی ربات
-
-کد ربات از طریق **Git** کنترل نسخه می‌شود. دایرکتوری `/root/bot/` مستقیماً به عنوان `/app` داخل کانتینر mount شده، بنابراین تغییرات کد بلافاصله پس از ری‌استارت کانتینر اعمال می‌شوند — **بدون نیاز به rebuild ایمیج**.
-
-### جریان کار استاندارد به‌روزرسانی
-
-```bash
-# روی ماشین توسعه‌دهنده محلی:
-git push origin main
-
-# روی سرور:
-cd /root/bot
-git pull
-docker restart telegram-bot
-```
-
-> ⚠️ فایل‌ها را مستقیماً روی سرور با `cat << EOF` یا ویرایشگر متن ویرایش **نکنید**. همیشه تغییرات را از طریق Git push کنید و روی سرور pull نمایید تا وضعیت تمیز و قابل بازتولید حفظ شود.
+> **نکته:** برای نصب مجدد بدون از دست دادن داده‌ها، فقط image را rebuild کنید: `docker compose build && docker compose up -d`
 
 ---
 
 ## 🔒 نکات امنیتی
 
-- **کنترل دسترسی:** ربات احراز هویت اجباری با رمز عبور را اعمال می‌کند. تنها کاربرانی که `BOT_PASSWORD` صحیح را وارد کنند مجاز به استفاده هستند.
-- **مدیریت اسرار:** `BOT_PASSWORD`، `DOWNLOADER_BOT_TOKEN`، `TELEGRAM_API_ID` و `TELEGRAM_API_HASH` از فایل `.env` بارگذاری می‌شوند که از کنترل نسخه مستثنی است. **هرگز فایل `.env` خود را commit نکنید.**
-- **ایزوله‌سازی API محلی:** سرور Local Telegram Bot API فقط روی `localhost:8081` گوش می‌دهد و به اینترنت عمومی در معرض نیست.
-- **امنیت کوکی:** مدیر کوکی توکن‌های `.txt` را به صورت امن پردازش می‌کند. فایل‌های کوکی خود را امن نگه دارید و هرگز آن‌ها را به صورت عمومی فاش نکنید.
-- **پیکربندی Rclone:** `rclone.conf` شما حاوی اطلاعات احراز هویت گوگل است. داخل کانتینر mount می‌شود و هرگز نباید به Git commit شود.
+- **کنترل دسترسی:** ربات از مدل تاییدمحور (approval-based) استفاده می‌کند و دسترسی‌ها با سیاست `REGISTRATION_OPEN` و تایید ادمین مدیریت می‌شوند.
+- **مدیریت اسرار:** فایل `.env` را خارج از version control نگه دارید. حداقل شامل token ربات و تنظیمات deployment/runtime است.
+- **ایزوله‌سازی Local API:** سرور Local Telegram Bot API فقط روی `localhost:8081` گوش می‌دهد و در معرض اینترنت عمومی نیست.
+- **امنیت کوکی:** فایل‌های کوکی `.txt` را امن نگه دارید و عمومی نکنید.
+- **پیکربندی Rclone:** فایل `rclone.conf` شامل اطلاعات احراز هویت Google است؛ هرگز آن را commit نکنید.
 
 ---
 
 ## 🐛 عیب‌یابی و سوالات متداول
 
 <details>
-<summary><strong>🔴 ربات پس از راه‌اندازی پاسخ نمی‌دهد</strong></summary>
+<summary><strong>🔴 ربات بعد از راه‌اندازی پاسخ نمی‌دهد</strong></summary>
 
-1. اطمینان از اجرای همه کانتینرها: `docker ps`
-2. بررسی لاگ‌های ربات: `docker logs -f telegram-bot`
-3. بررسی لاگ‌های سرور API محلی: `docker logs -f telegram-bot-api`
-4. بررسی صحت `DOWNLOADER_BOT_TOKEN` در فایل `.env` (بدون فضای خالی اضافه).
-5. تأیید وجود `TELEGRAM_API_ID`، `TELEGRAM_API_HASH` و `TELEGRAM_LOCAL=1` در فایل `.env`.
+1. وضعیت سرویس‌ها را با همان compose fileی که اجرا کردید بررسی کنید:
+   - حالت دستی: `docker compose ps`
+   - با `start.sh`: `docker compose -f .start.compose.yml ps`
+2. لاگ‌های ربات را ببینید:
+   - حالت دستی: `docker compose logs -f telegram-bot`
+   - با `start.sh`: `docker compose -f .start.compose.yml logs -f telegram-bot`
+3. اگر Local mode فعال است (`TELEGRAM_LOCAL=1`)، لاگ `telegram-bot-api` را هم بررسی کنید.
+4. صحت `DOWNLOADER_BOT_TOKEN` در `.env` را بررسی کنید (بدون فاصله اضافه).
 
 </details>
 
 <details>
 <summary><strong>🔴 خطای "فایل خیلی بزرگ است" یا آپلود ناموفق</strong></summary>
 
-Telegram Bot API استاندارد آپلود فایل را به **۵۰ مگابایت** محدود می‌کند. این پروژه یک **سرور محلی Telegram Bot API** اجرا می‌کند که این محدودیت را به **۲ گیگابایت** افزایش می‌دهد. اگر با این خطا مواجه هستید:
+Telegram Bot API استاندارد آپلود را به **50 MB** محدود می‌کند. این پروژه با **Local Telegram Bot API** این سقف را به **2 GB** افزایش می‌دهد. اگر خطا می‌بینید:
 
-1. تأیید اجرای کانتینر `telegram-bot-api`: `docker ps | grep telegram-bot-api`
-2. بررسی لاگ‌های آن: `docker logs -f telegram-bot-api`
-3. تأیید وجود `TELEGRAM_LOCAL=1` در فایل `.env`.
-4. اطمینان از پیکربندی ربات برای اتصال به `http://localhost:8081`.
+1. از اجرای کانتینر `telegram-bot-api` مطمئن شوید: `docker ps | grep telegram-bot-api`
+2. لاگ آن را بررسی کنید: `docker logs -f telegram-bot-api`
+3. وجود `TELEGRAM_LOCAL=1` در `.env` را تایید کنید.
+4. تنظیم بودن اتصال ربات به `http://localhost:8081` را بررسی کنید.
 
 </details>
 
 <details>
-<summary><strong>🔴 آپلود گوگل درایو ناموفق است</strong></summary>
+<summary><strong>🔴 آپلود Google Drive ناموفق است</strong></summary>
 
-1. وجود `rclone.conf` در مسیر میزبان `/root/.config/rclone/rclone.conf` را تأیید کنید.
-2. اجرا کنید: `docker exec telegram-bot rclone listremotes` تا مطمئن شوید rclone remote شما را می‌بیند.
-3. تأیید دسترسی write به پوشه هدف در درایو.
+1. بررسی کنید `./rclone.conf` در ریشه پروژه وجود دارد و **فایل** است.
+2. دستور `docker exec telegram-bot rclone listremotes` را اجرا کنید تا remote قابل مشاهده باشد.
+3. دسترسی write پوشه مقصد در Drive را تایید کنید.
+
+</details>
+
+<details>
+<summary><strong>🔴 خطای `[Errno 21] Is a directory` برای `cookies_enabled.json` یا `rclone.conf`</strong></summary>
+
+اگر فایل bind-mount وجود نداشته باشد، Docker ممکن است آن را به‌صورت directory بسازد. این دو مسیر باید فایل باشند:
+
+```bash
+test -f cookies_enabled.json || printf "{}" > cookies_enabled.json
+test -f rclone.conf || touch rclone.conf
+```
+
+اگر الان directory هستند، حذفشان کنید و دوباره به‌صورت فایل بسازید، سپس سرویس‌ها را ری‌استارت کنید.
+
+</details>
+
+<details>
+<summary><strong>🔴 دانلود فایل‌های Telegram در Local Bot API با 404 شکست می‌خورد</strong></summary>
+
+در حالت local ممکن است `bot.get_file()` مسیر نسبی بدهد (مثل `videos/file_6.mp4`). ربات باید قبل از خواندن، مسیر مطلق زیر `/var/lib/telegram-bot-api/...` را بازسازی کند.
+
+این پروژه guard لازم را دارد و به این mount در `telegram-bot` وابسته است:
+
+```yaml
+- ./telegram-bot-api-data:/var/lib/telegram-bot-api:ro
+```
+
+اگر این mount را حذف کرده‌اید، برگردانید و سرویس‌ها را ری‌استارت کنید.
+
+</details>
+
+<details>
+<summary><strong>🔴 آپلود Drive شکست می‌خورد چون env key پوشه شناسایی نمی‌شود</strong></summary>
+
+کلید env را دقیقاً با همین حروف بنویسید: `DRIVE_FOLDER_ID` (حروف بزرگ `ID`).  
+حالت اشتباه مثل `DRIVE_FOLDER_iD` در runtime خوانده نمی‌شود.
 
 </details>
 
 <details>
 <summary><strong>🔴 دانلود با خطای "403 Forbidden" یا محدودیت سنی ناموفق است</strong></summary>
 
-باید کوکی‌های احراز هویت از یک session مرورگر وارد شده ارائه دهید. کوکی‌های خود را با فرمت **Netscape** از طریق یک افزونه مرورگر (مثلاً "Get cookies.txt LOCALLY") صادر کرده، سپس فایل `.txt` را مستقیماً برای ربات آپلود کنید.
+کوکی احراز هویت از مرورگر لاگین‌شده لازم است. کوکی را با فرمت **Netscape** (مثلاً با افزونه "Get cookies.txt LOCALLY") خروجی بگیرید و فایل `.txt` را مستقیم برای ربات بفرستید.
 
 </details>
-
-<details>
-<summary><strong>🟡 چطور ربات را به نسخه جدید به‌روزرسانی کنم؟</strong></summary>
-
-```bash
-# روی سرور:
-cd /root/bot
-git pull
-docker restart telegram-bot
-```
-
-فایل `.env`، داده‌های پایدار و ولوم‌ها تحت تأثیر قرار نمی‌گیرند.
-
-</details>
-
-<details>
-<summary><strong>🟡 چطور همه سرویس‌ها را متوقف کنم؟</strong></summary>
-
-```bash
-docker compose down
-```
-
-برای توقف و حذف همه ولوم‌های داده:
-
-```bash
-docker compose down -v
-```
-
-</details>
-
-<details>
-<summary><strong>🟡 چرا نمی‌توانم فایلم را "queue.py" بنامم؟</strong></summary>
-
-نام `queue` با ماژول استاندارد کتابخانه Python تداخل دارد. هر فایلی با نام `queue.py` داخل دایرکتوری ربات (`/app`) ماژول `queue` کتابخانه استاندارد را پنهان کرده و اپلیکیشن را خراب می‌کند. پیاده‌سازی صف در این پروژه `downloader_queue.py` نام دارد.
-
-</details>
-
----
-
-## 🤝 مشارکت در توسعه
-
-مشارکت‌ها با گرمی پذیرفته می‌شوند! نحوه مشارکت:
-
-1. مخزن را روی GitHub **Fork** کنید.
-2. یک branch ویژگی بسازید: `git checkout -b feature/your-amazing-feature`
-3. تغییرات خود را با پیام‌های واضح commit کنید: `git commit -m "feat: add amazing feature"`
-4. به fork خود **Push** کنید: `git push origin feature/your-amazing-feature`
-5. یک **Pull Request** به برنچ `main` باز کنید و توضیح دهید چه تغییراتی داده‌اید و چرا.
-
-### راهنمای توسعه
-
-- از [PEP 8](https://peps.python.org/pep-0008/) برای استایل کد Python پیروی کنید.
-- تغییرات را متمرکز نگه دارید — یک ویژگی یا رفع باگ در هر PR.
-- اگر تغییر شما بر جریان کار کاربر تأثیر می‌گذارد، بخش مرتبط README را به‌روز کنید.
-- برای رشته‌های دوزبانه، ورودی‌ها را به هر دو بخش انگلیسی و فارسی در `locales.py` اضافه کنید.
-- هرگز فایلی با نام `queue.py` داخل دایرکتوری ربات نسازید.
-
-### گزارش مشکلات
-
-لطفاً یک [GitHub Issue](https://github.com/parsa-f/TeleCloud-Downloader/issues) با موارد زیر باز کنید:
-- توضیح واضح باگ یا درخواست ویژگی.
-- مراحل بازتولید (برای باگ‌ها).
-- لاگ‌های مرتبط از `docker logs telegram-bot` یا `docker logs telegram-bot-api`.
 
 ---
 
@@ -462,8 +371,3 @@ docker compose down -v
 این پروژه تحت مجوز [MIT License](LICENSE) منتشر شده است.
 
 </div>
-
-
-
-
-

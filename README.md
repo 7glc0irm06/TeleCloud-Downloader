@@ -30,15 +30,18 @@
 - [⚙️ Configuration Reference](#-configuration-reference)
 - [📁 Project Structure](#-project-structure)
 - [💾 Data Persistency & Volumes](#-data-persistency--volumes)
-- [🔄 Updating the Bot](#-updating-the-bot)
 - [🔒 Security Notes](#-security-notes)
 - [🐛 Troubleshooting & FAQ](#-troubleshooting--faq)
-- [🤝 Contributing](#-contributing)
 - [📄 License](#-license)
 
 ---
 
 ## ✨ Features
+
+### ☁️ Google Drive Integration via Rclone
+Upload downloaded files directly to Google Drive using Rclone, with flexible destination routing between Telegram and Drive based on your settings.
+
+---
 
 ### 🔥 Local Telegram Bot API Server — No More File Size Limits
 > This is the most critical architectural feature of TeleCloud-Downloader.
@@ -52,12 +55,32 @@ Unlike standard bots that are capped by Telegram's default **20 MB download / 50
 ---
 
 ### 🚀 Multi-Engine Downloader
-- **yt-dlp Engine** — High-speed, robust downloads from YouTube, SoundCloud, X (Twitter), Instagram, and hundreds of other platforms.
-- **Torrent Engine** — Direct processing and downloading of BitTorrent magnet links.
-- **Direct Link Downloader** — Efficient downloads for raw HTTP/HTTPS file URLs.
 
-### ☁️ Smart Upload Destinations
-Seamlessly toggle on-the-fly between **native Telegram uploads** and **automated Google Drive** cloud uploads via Rclone.
+#### 🌐 Supported Sites (yt-dlp)
+Powered by [yt-dlp](https://github.com/yt-dlp/yt-dlp), the bot supports **thousands of websites**. Here are the most popular ones:
+
+| Platform | Type |
+|---|---|
+| YouTube | Videos, Playlists, Shorts, Live streams |
+| Instagram | Reels, Posts, Stories, IGTV |
+| X (Twitter) | Videos, GIFs |
+| TikTok | Videos |
+| SoundCloud | Tracks, Playlists |
+| Vimeo | Videos |
+| Dailymotion | Videos |
+| Reddit | Videos, GIFs |
+| Pinterest | Videos |
+| Twitch | Clips, VODs |
+| Facebook | Videos, Reels |
+
+
+> This is just a highlight — [yt-dlp supports 1000+ sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md). If a URL works with yt-dlp, it works here.
+
+#### 🧲 Torrent & Magnet Links
+Send any **BitTorrent magnet link** (`magnet:?xt=urn:btih:...`) directly to the bot. The torrent engine will download the content and deliver it to Telegram or Google Drive — no torrent client needed on your end.
+
+#### 🔗 Direct Link Downloader
+Send any raw HTTP/HTTPS file URL and the bot will download it directly — PDFs, ZIPs, MP4s, or any other file type.
 
 ### 🎛️ Advanced Settings Panel
 - **Video Mode:** Cycle between `mp4`, `mkv`, or `default` format.
@@ -120,75 +143,12 @@ Local API mode architecture:
 
 ## 🚀 Installation & Deployment
 
-### Beginner Path (Recommended): `start.sh`
+Choose the guide that fits your situation:
 
-Use the one-command installer:
-
-```bash
-chmod +x start.sh
-./start.sh
-```
-
-What this does:
-
-- Collects required values (`DOWNLOADER_BOT_TOKEN`, `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `ADMIN_ID`)
-- Lets you choose local API mode (`TELEGRAM_LOCAL=1` or `0`)
-- Optionally configures Google Drive (`./rclone.conf`)
-- Generates and runs `.start.compose.yml` for your selected mode
-
-For full beginner flow details, see [QUICKSTART.md](./QUICKSTART.md).
-
-### Advanced Path: Manual Docker Setup
-
-#### 1) Prerequisites
-
-- [Docker Engine](https://docs.docker.com/engine/install/)
-- [Docker Compose Plugin](https://docs.docker.com/compose/install/) (`docker compose` v2)
-- Git
-
-#### 2) Clone
-
-```bash
-git clone https://github.com/parsa-f/TeleCloud-Downloader.git
-cd TeleCloud-Downloader
-```
-
-#### 3) Create `.env`
-
-```env
-DOWNLOADER_BOT_TOKEN=your_telegram_bot_token_here
-TELEGRAM_API_ID=your_api_id_from_my.telegram.org
-TELEGRAM_API_HASH=your_api_hash_from_my.telegram.org
-ADMIN_ID=your_numeric_telegram_user_id
-TELEGRAM_LOCAL=1
-```
-
-#### 4) Prepare required host files/directories
-
-```bash
-mkdir -p downloads cookies user_configs
-test -f cookies_enabled.json || printf "{}" > cookies_enabled.json
-test -f rclone.conf || touch rclone.conf
-```
-
-#### 5) Launch
-
-```bash
-docker compose up -d --build
-docker compose ps
-```
-
-Expected services:
-
-- `TELEGRAM_LOCAL=1`: `telegram-bot` + `telegram-bot-api`
-- `TELEGRAM_LOCAL=0`: `telegram-bot` only
-
-Logs:
-
-```bash
-docker compose logs -f telegram-bot
-docker compose logs -f telegram-bot-api
-```
+| Guide | Who it's for |
+|---|---|
+| [⚡ QUICKSTART.md](./QUICKSTART.md) | First-time setup on Ubuntu/Debian — one-command installer (`start.sh`) |
+| [🛠️ SETUP.md](./SETUP.md) | Manual Docker setup, advanced configuration, non-Docker local run |
 
 ---
 
@@ -288,8 +248,6 @@ TeleCloud-Downloader/
     └── smart_dest.py          #   Destination routing logic
 ```
 
-> ⚠️ **Important:** Never create a file named `queue.py` inside the bot folder. It conflicts with Python's standard library `queue` module. The queue module in this project is named `downloader_queue.py`.
-
 ---
 
 ## 💾 Data Persistency & Volumes
@@ -310,26 +268,6 @@ All persistent data lives **on the host machine** via Docker bind mounts, ensuri
 The two `telegram-bot-api-data` mounts are only used when Local API mode is enabled (`TELEGRAM_LOCAL=1`).
 
 > **Tip:** To perform a clean reinstall without losing user data, rebuild only the image: `docker compose build && docker compose up -d`
-
----
-
-## 🔄 Updating the Bot
-
-The bot code is version-controlled via **Git**. The `/root/bot/` directory is mounted directly into the container as `/app`, so code changes take effect immediately after a container restart — **no image rebuild needed**.
-
-### Standard Update Workflow
-
-```bash
-# On your local development machine:
-git push origin main
-
-# On the server:
-cd /root/bot
-git pull
-docker restart telegram-bot
-```
-
-> ⚠️ **Do NOT** edit files directly on the server using `cat << EOF` or manual text editing. Always push changes via Git and pull them on the server to maintain a clean, reproducible state.
 
 ---
 
@@ -423,69 +361,6 @@ Wrong casing like `DRIVE_FOLDER_iD` will not be read by runtime config.
 You need to provide authentication cookies from a logged-in browser session. Export your cookies in **Netscape format** using a browser extension (e.g., "Get cookies.txt LOCALLY"), then upload the `.txt` file directly to the bot chat.
 
 </details>
-
-<details>
-<summary><strong>🟡 How do I update the bot to a new version?</strong></summary>
-
-```bash
-# On the server:
-cd /root/bot
-git pull
-docker restart telegram-bot
-```
-
-Your `.env`, persistent data, and volumes will not be affected.
-
-</details>
-
-<details>
-<summary><strong>🟡 How do I stop all services?</strong></summary>
-
-```bash
-docker compose down
-```
-
-To stop and remove all associated data volumes as well:
-
-```bash
-docker compose down -v
-```
-
-</details>
-
-<details>
-<summary><strong>🟡 Why can't I name my file "queue.py"?</strong></summary>
-
-The name `queue` conflicts with Python's built-in standard library module. Any file named `queue.py` inside the bot directory (`/app`) will shadow the standard library's `queue` module and break the application. The queue implementation in this project is named `downloader_queue.py`.
-
-</details>
-
----
-
-## 🤝 Contributing
-
-Contributions are warmly welcome! Here's how to get involved:
-
-1. **Fork** the repository on GitHub.
-2. **Create a feature branch:** `git checkout -b feature/your-amazing-feature`
-3. **Commit your changes** with clear, descriptive messages: `git commit -m "feat: add amazing feature"`
-4. **Push** to your fork: `git push origin feature/your-amazing-feature`
-5. **Open a Pull Request** against the `main` branch, describing what you changed and why.
-
-### Development Guidelines
-
-- Follow [PEP 8](https://peps.python.org/pep-0008/) for Python code style.
-- Keep changes focused — one feature or fix per PR.
-- Update the relevant README section if your change affects the user-facing workflow.
-- For bilingual strings, add entries to both English and Persian sections in `locales.py`.
-- Never name a file `queue.py` inside the bot directory.
-
-### Reporting Issues
-
-Please open a [GitHub Issue](https://github.com/parsa-f/TeleCloud-Downloader/issues) with:
-- A clear description of the bug or feature request.
-- Steps to reproduce (for bugs).
-- Relevant logs from `docker logs telegram-bot` or `docker logs telegram-bot-api`.
 
 ---
 

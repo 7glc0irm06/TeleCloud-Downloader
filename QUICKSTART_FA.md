@@ -12,7 +12,23 @@
 - سرور Ubuntu/Debian
 - دسترسی به اینترنت
 - یک کاربر با دسترسی `sudo`
-- پروژه از قبل clone/extract شده باشد
+
+## دریافت پروژه
+
+مخزن را از GitHub کلون کنید:
+
+```bash
+git clone https://github.com/parsa-f/TeleCloud-Downloader.git
+cd TeleCloud-Downloader
+```
+
+یا فایل ZIP را دانلود و extract کنید:
+
+```bash
+curl -L https://github.com/parsa-f/TeleCloud-Downloader/archive/refs/heads/main.zip -o telecloud.zip
+unzip telecloud.zip
+cd TeleCloud-Downloader-main
+```
 
 ## اجرای نصب‌کننده
 
