@@ -133,20 +133,20 @@ prompt_value() {
   secret="$2"
   while :; do
     if [ "$secret" = "1" ]; then
-      printf "%s: " "$prompt"
-      stty -echo
-      IFS= read -r value
-      stty echo
-      printf "\n"
+      printf "%s: " "$prompt" > /dev/tty
+      stty -echo < /dev/tty
+      IFS= read -r value < /dev/tty
+      stty echo < /dev/tty
+      printf "\n" > /dev/tty
     else
-      printf "%s: " "$prompt"
-      IFS= read -r value
+      printf "%s: " "$prompt" > /dev/tty
+      IFS= read -r value < /dev/tty
     fi
     if [ -n "$value" ]; then
       printf "%s" "$value"
       return 0
     fi
-    log_warn "Value cannot be empty."
+    printf "Value cannot be empty.\n" > /dev/tty
   done
 }
 
@@ -155,33 +155,33 @@ prompt_yes_no() {
   default="${2:-n}"
   while :; do
     if [ "$default" = "y" ]; then
-      printf "%s [Y/n]: " "$question"
+      printf "%s [Y/n]: " "$question" > /dev/tty
     else
-      printf "%s [y/N]: " "$question"
+      printf "%s [y/N]: " "$question" > /dev/tty
     fi
-    IFS= read -r answer
+    IFS= read -r answer < /dev/tty
     case "${answer:-$default}" in
       y|Y|yes|YES) return 0 ;;
       n|N|no|NO) return 1 ;;
-      *) log_warn "Please answer y or n." ;;
+      *) printf "Please answer y or n.\n" > /dev/tty ;;
     esac
   done
 }
 
 prompt_choice_1_2() {
   while :; do
-    printf "Your .env is already configured. What would you like to do?\n"
-    printf "  1) Review / edit existing values\n"
-    printf "  2) Keep existing values and continue\n"
-    printf "Choose [1/2] (default 2): "
-    IFS= read -r choice
+    printf "Your .env is already configured. What would you like to do?\n" > /dev/tty
+    printf "  1) Review / edit existing values\n" > /dev/tty
+    printf "  2) Keep existing values and continue\n" > /dev/tty
+    printf "Choose [1/2] (default 2): " > /dev/tty
+    IFS= read -r choice < /dev/tty
     case "${choice:-2}" in
       1|2)
         printf "%s" "${choice:-2}"
         return 0
         ;;
       *)
-        log_warn "Please choose 1 or 2."
+        printf "Please choose 1 or 2.\n" > /dev/tty
         ;;
     esac
   done
@@ -461,8 +461,8 @@ fi
 
 if [ "$ask_local" -eq 1 ]; then
   printf "Enable Local Telegram Bot API server?\n"
-  printf "- YES: removes 20MB limit, supports up to 2GB uploads\n"
-  printf "- NO: simpler setup, 20MB limit applies\n"
+  printf "%s\n" "- YES: removes 20MB limit, supports up to 2GB uploads"
+  printf "%s\n" "- NO: simpler setup, 20MB limit applies"
   if prompt_yes_no "Enable Local Telegram Bot API server" "y"; then
     env_set "TELEGRAM_LOCAL" "1"
     local_enabled="enabled"
@@ -506,8 +506,8 @@ fi
 
 if [ "$ask_drive" -eq 1 ]; then
   printf "Enable Google Drive uploads via rclone?\n"
-  printf "- YES: files can be uploaded to Google Drive\n"
-  printf "- NO: all files sent to Telegram only\n"
+  printf "%s\n" "- YES: files can be uploaded to Google Drive"
+  printf "%s\n" "- NO: all files sent to Telegram only"
   if prompt_yes_no "Enable Google Drive uploads via rclone" "n"; then
     if [ -s "$rclone_path" ]; then
       log_ok "Existing rclone.conf file detected."
@@ -574,7 +574,7 @@ printf "Google Drive  : %s\n" "$drive_enabled"
 printf "Bot token     : set\n"
 printf "Admin ID      : set\n"
 
-if ! prompt_yes_no "Proceed" "y"; then
+if ! prompt_yes_no "Proceed?" "y"; then
   log_warn "Setup canceled before launch."
   exit 0
 fi
