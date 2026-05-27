@@ -7,6 +7,7 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 PROJECT_DIR="$SCRIPT_DIR"
 ENV_FILE="$PROJECT_DIR/.env"
+RUNTIME_COMPOSE_FILE="$PROJECT_DIR/.start.compose.yml"
 COLAB_DEFAULT_URL="https://colab.research.google.com/drive/1Ltyqs4i0UAuR6FpBrn3ygMuqlnPo_igV?usp=sharing"
 
 if [ -t 1 ]; then
@@ -28,6 +29,14 @@ log_ok() { printf "%sOK:%s %s\n" "$C_GREEN" "$C_RESET" "$1"; }
 log_warn() { printf "%sWARN:%s %s\n" "$C_YELLOW" "$C_RESET" "$1"; }
 log_err() { printf "%sERROR:%s %s\n" "$C_RED" "$C_RESET" "$1" >&2; }
 die() { log_err "$1"; exit 1; }
+
+is_truthy() {
+  v="$(printf "%s" "$1" | tr '[:upper:]' '[:lower:]')"
+  case "$v" in
+    1|true|yes|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 if [ "$(id -u)" -eq 0 ]; then
   SUDO=""
@@ -141,6 +150,43 @@ prompt_value() {
   done
 }
 
+prompt_yes_no() {
+  question="$1"
+  default="${2:-n}"
+  while :; do
+    if [ "$default" = "y" ]; then
+      printf "%s [Y/n]: " "$question"
+    else
+      printf "%s [y/N]: " "$question"
+    fi
+    IFS= read -r answer
+    case "${answer:-$default}" in
+      y|Y|yes|YES) return 0 ;;
+      n|N|no|NO) return 1 ;;
+      *) log_warn "Please answer y or n." ;;
+    esac
+  done
+}
+
+prompt_choice_1_2() {
+  while :; do
+    printf "Your .env is already configured. What would you like to do?\n"
+    printf "  1) Review / edit existing values\n"
+    printf "  2) Keep existing values and continue\n"
+    printf "Choose [1/2] (default 2): "
+    IFS= read -r choice
+    case "${choice:-2}" in
+      1|2)
+        printf "%s" "${choice:-2}"
+        return 0
+        ;;
+      *)
+        log_warn "Please choose 1 or 2."
+        ;;
+    esac
+  done
+}
+
 ensure_required_env() {
   key="$1"
   label="$2"
@@ -166,6 +212,44 @@ ensure_required_env() {
   done
 }
 
+review_or_edit_env() {
+  key="$1"
+  label="$2"
+  secret="$3"
+  numeric="$4"
+
+  existing="$(env_get "$key" || true)"
+  if [ -z "$existing" ]; then
+    ensure_required_env "$key" "$label" "$secret" "$numeric"
+    return 0
+  fi
+
+  if [ "$secret" = "1" ]; then
+    shown="***"
+  else
+    shown="$existing"
+  fi
+
+  printf "%s current value: %s\n" "$key" "$shown"
+  if prompt_yes_no "Keep this value?" "y"; then
+    return 0
+  fi
+
+  while :; do
+    value="$(prompt_value "$label" "$secret")"
+    if [ "$numeric" = "1" ]; then
+      case "$value" in
+        *[!0-9]*)
+          log_warn "$key must be numeric."
+          continue
+          ;;
+      esac
+    fi
+    env_set "$key" "$value"
+    return 0
+  done
+}
+
 set_default_if_missing() {
   key="$1"
   value="$2"
@@ -176,37 +260,86 @@ set_default_if_missing() {
   fi
 }
 
-prompt_yes_no() {
-  question="$1"
-  default="${2:-n}"
-  while :; do
-    if [ "$default" = "y" ]; then
-      printf "%s [Y/n]: " "$question"
-    else
-      printf "%s [y/N]: " "$question"
+all_required_present() {
+  for key in DOWNLOADER_BOT_TOKEN BOT_PASSWORD TELEGRAM_API_ID TELEGRAM_API_HASH ADMIN_ID; do
+    if [ -z "$(env_get "$key" || true)" ]; then
+      return 1
     fi
-    IFS= read -r answer
-    case "${answer:-$default}" in
-      y|Y|yes|YES) return 0 ;;
-      n|N|no|NO) return 1 ;;
-      *) log_warn "Please answer y or n." ;;
-    esac
   done
+  return 0
 }
 
 docker_compose_ok() {
   run_root docker compose version >/dev/null 2>&1
 }
 
+generate_runtime_compose() {
+  local_mode="$1"
+
+  if [ "$local_mode" = "1" ]; then
+    cat > "$RUNTIME_COMPOSE_FILE" <<'EOF'
+version: '3.8'
+
+services:
+  telegram-bot-api:
+    image: aiogram/telegram-bot-api:latest
+    container_name: telegram-bot-api
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    volumes:
+      - ./telegram-bot-api-data:/var/lib/telegram-bot-api
+      - ./downloads:/root/downloads
+
+  telegram-bot:
+    build: .
+    container_name: telegram-bot
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    volumes:
+      - ./downloads:/root/downloads
+      - ./cookies:/root/cookies
+      - ./cookies_enabled.json:/root/cookies_enabled.json
+      - ./rclone.conf:/root/.config/rclone/rclone.conf
+      - ./user_configs:/app/user_configs
+      - .:/app
+      - ./telegram-bot-api-data:/var/lib/telegram-bot-api:ro
+EOF
+  else
+    cat > "$RUNTIME_COMPOSE_FILE" <<'EOF'
+version: '3.8'
+
+services:
+  telegram-bot:
+    build: .
+    container_name: telegram-bot
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    volumes:
+      - ./downloads:/root/downloads
+      - ./cookies:/root/cookies
+      - ./cookies_enabled.json:/root/cookies_enabled.json
+      - ./rclone.conf:/root/.config/rclone/rclone.conf
+      - ./user_configs:/app/user_configs
+      - .:/app
+EOF
+  fi
+}
+
 start_compose() {
   if docker_compose_ok; then
-    run_root docker compose up -d --build
-    run_root docker compose ps
+    run_root docker compose -f "$RUNTIME_COMPOSE_FILE" up -d --build --remove-orphans
+    run_root docker compose -f "$RUNTIME_COMPOSE_FILE" ps
     return 0
   fi
   if has_cmd docker-compose; then
-    run_root docker-compose up -d --build
-    run_root docker-compose ps
+    run_root docker-compose -f "$RUNTIME_COMPOSE_FILE" up -d --build --remove-orphans
+    run_root docker-compose -f "$RUNTIME_COMPOSE_FILE" ps
     return 0
   fi
   die "Neither 'docker compose' nor 'docker-compose' is available."
@@ -269,63 +402,181 @@ log_ok "Docker is ready."
 log_step "Preparing required folders/files"
 ensure_dir_path "$PROJECT_DIR/downloads"
 ensure_dir_path "$PROJECT_DIR/cookies"
-ensure_dir_path "$PROJECT_DIR/telegram-bot-api-data"
 ensure_dir_path "$PROJECT_DIR/user_configs"
 ensure_regular_file "$PROJECT_DIR/cookies_enabled.json" "{}"
-ensure_regular_file "$PROJECT_DIR/rclone.conf" ""
-log_ok "Paths and base files are ready."
+log_ok "Base paths are ready."
 
 log_step "Configuring .env (required values + safe defaults)"
 ensure_regular_file "$ENV_FILE" ""
 
-ensure_required_env "DOWNLOADER_BOT_TOKEN" "Enter DOWNLOADER_BOT_TOKEN (from @BotFather)" 0 0
-ensure_required_env "BOT_PASSWORD" "Enter BOT_PASSWORD (users must send this to access bot)" 1 0
-ensure_required_env "TELEGRAM_API_ID" "Enter TELEGRAM_API_ID (from my.telegram.org)" 0 1
-ensure_required_env "TELEGRAM_API_HASH" "Enter TELEGRAM_API_HASH (from my.telegram.org)" 0 0
-ensure_required_env "ADMIN_ID" "Enter ADMIN_ID (your Telegram numeric user id)" 0 1
+review_mode=0
+skip_optional=0
 
-set_default_if_missing "TELEGRAM_LOCAL" "1"
+if all_required_present; then
+  choice="$(prompt_choice_1_2)"
+  if [ "$choice" = "1" ]; then
+    review_mode=1
+  else
+    skip_optional=1
+  fi
+fi
+
+if [ "$review_mode" -eq 1 ]; then
+  review_or_edit_env "DOWNLOADER_BOT_TOKEN" "Enter DOWNLOADER_BOT_TOKEN (from @BotFather)" 0 0
+  review_or_edit_env "BOT_PASSWORD" "Enter BOT_PASSWORD (users must send this to access bot)" 1 0
+  review_or_edit_env "TELEGRAM_API_ID" "Enter TELEGRAM_API_ID (from my.telegram.org)" 0 1
+  review_or_edit_env "TELEGRAM_API_HASH" "Enter TELEGRAM_API_HASH (from my.telegram.org)" 0 0
+  review_or_edit_env "ADMIN_ID" "Enter ADMIN_ID (your Telegram numeric user id)" 0 1
+else
+  ensure_required_env "DOWNLOADER_BOT_TOKEN" "Enter DOWNLOADER_BOT_TOKEN (from @BotFather)" 0 0
+  ensure_required_env "BOT_PASSWORD" "Enter BOT_PASSWORD (users must send this to access bot)" 1 0
+  ensure_required_env "TELEGRAM_API_ID" "Enter TELEGRAM_API_ID (from my.telegram.org)" 0 1
+  ensure_required_env "TELEGRAM_API_HASH" "Enter TELEGRAM_API_HASH (from my.telegram.org)" 0 0
+  ensure_required_env "ADMIN_ID" "Enter ADMIN_ID (your Telegram numeric user id)" 0 1
+fi
+
 set_default_if_missing "REGISTRATION_OPEN" "false"
 set_default_if_missing "MAX_DAILY_FILES" "20"
 set_default_if_missing "MAX_DAILY_BYTES" "5368709120"
 set_default_if_missing "MAX_CONCURRENT_DOWNLOADS" "2"
 set_default_if_missing "COLAB_URL" "$COLAB_DEFAULT_URL"
 
-log_ok ".env is configured."
-
-log_step "Google Drive (rclone.conf) setup"
-if [ -d "$PROJECT_DIR/rclone.conf" ]; then
-  die "rclone.conf is a directory. Remove it and create a file named rclone.conf."
+local_env_raw="$(env_get TELEGRAM_LOCAL || true)"
+if [ -n "$local_env_raw" ] && is_truthy "$local_env_raw"; then
+  local_enabled="enabled"
+else
+  local_enabled="disabled"
 fi
 
-if [ -s "$PROJECT_DIR/rclone.conf" ]; then
-  log_ok "Existing rclone.conf file detected."
-else
-  if prompt_yes_no "Do you already have an rclone.conf file?" "n"; then
-    while :; do
-      printf "Enter full path to your rclone.conf: "
-      IFS= read -r rclone_src
-      [ -n "$rclone_src" ] || { log_warn "Path cannot be empty."; continue; }
-      if [ ! -f "$rclone_src" ]; then
-        log_warn "File not found: $rclone_src"
-        continue
-      fi
-      cp "$rclone_src" "$PROJECT_DIR/rclone.conf"
-      log_ok "Copied rclone.conf into project root."
-      break
-    done
+ask_local=0
+if [ "$review_mode" -eq 1 ]; then
+  ask_local=1
+elif [ -z "$local_env_raw" ]; then
+  ask_local=1
+fi
+
+if [ "$skip_optional" -eq 1 ] && [ "$ask_local" -eq 1 ] && [ -n "$local_env_raw" ]; then
+  ask_local=0
+fi
+
+if [ "$ask_local" -eq 1 ]; then
+  printf "Enable Local Telegram Bot API server?\n"
+  printf "- YES: removes 20MB limit, supports up to 2GB uploads\n"
+  printf "- NO: simpler setup, 20MB limit applies\n"
+  if prompt_yes_no "Enable Local Telegram Bot API server" "y"; then
+    env_set "TELEGRAM_LOCAL" "1"
+    local_enabled="enabled"
   else
-    # Critical guard: ensure file exists (not missing) so Docker does not create a directory on mount.
-    touch "$PROJECT_DIR/rclone.conf"
-    colab_url="$(env_get COLAB_URL || true)"
-    [ -n "$colab_url" ] || colab_url="$COLAB_DEFAULT_URL"
-    log_warn "Google Drive is skipped for now (Telegram-only mode will still work)."
-    printf "\nFollow these steps later:\n"
-    printf "1) Open your Colab link:\n   %s\n" "$colab_url"
-    printf "2) Run it and download the generated rclone.conf file.\n"
-    printf "3) Upload/copy that file to this server and replace:\n   %s/rclone.conf\n" "$PROJECT_DIR"
-    printf "4) Re-run this script (or restart containers).\n\n"
+    env_set "TELEGRAM_LOCAL" "0"
+    local_enabled="disabled"
   fi
+else
+  if [ "$local_enabled" = "enabled" ]; then
+    env_set "TELEGRAM_LOCAL" "1"
+  else
+    env_set "TELEGRAM_LOCAL" "0"
+  fi
+fi
+
+if [ "$local_enabled" = "enabled" ]; then
+  ensure_dir_path "$PROJECT_DIR/telegram-bot-api-data"
+fi
+
+# Google Drive optional flow
+rclone_path="$PROJECT_DIR/rclone.conf"
+if [ -e "$rclone_path" ] && [ -d "$rclone_path" ]; then
+  die "Path '$rclone_path' must be a file, but a directory exists there."
+fi
+
+drive_enabled="disabled"
+if [ -f "$rclone_path" ] && [ -s "$rclone_path" ]; then
+  drive_enabled="enabled"
+fi
+
+ask_drive=0
+if [ "$review_mode" -eq 1 ]; then
+  ask_drive=1
+elif [ ! -f "$rclone_path" ]; then
+  ask_drive=1
+fi
+
+if [ "$skip_optional" -eq 1 ] && [ "$ask_drive" -eq 1 ] && [ -f "$rclone_path" ]; then
+  ask_drive=0
+fi
+
+if [ "$ask_drive" -eq 1 ]; then
+  printf "Enable Google Drive uploads via rclone?\n"
+  printf "- YES: files can be uploaded to Google Drive\n"
+  printf "- NO: all files sent to Telegram only\n"
+  if prompt_yes_no "Enable Google Drive uploads via rclone" "n"; then
+    if [ -s "$rclone_path" ]; then
+      log_ok "Existing rclone.conf file detected."
+      drive_enabled="enabled"
+    else
+      if prompt_yes_no "Do you already have an rclone.conf file" "n"; then
+        while :; do
+          printf "Enter full path to your rclone.conf: "
+          IFS= read -r rclone_src
+          [ -n "$rclone_src" ] || { log_warn "Path cannot be empty."; continue; }
+          if [ ! -f "$rclone_src" ]; then
+            log_warn "File not found: $rclone_src"
+            continue
+          fi
+          cp "$rclone_src" "$rclone_path"
+          drive_enabled="enabled"
+          log_ok "Copied rclone.conf into project root."
+          break
+        done
+      else
+        touch "$rclone_path"
+        drive_enabled="disabled"
+        colab_url="$(env_get COLAB_URL || true)"
+        [ -n "$colab_url" ] || colab_url="$COLAB_DEFAULT_URL"
+        log_warn "Google Drive is not configured yet. Bot will run in Telegram-only mode."
+        printf "\nFollow these steps later:\n"
+        printf "1) Open your Colab link:\n   %s\n" "$colab_url"
+        printf "2) Run it and download the generated rclone.conf file.\n"
+        printf "3) Upload/copy that file to this server and replace:\n   %s/rclone.conf\n" "$PROJECT_DIR"
+        printf "4) Re-run this script (or restart containers).\n\n"
+      fi
+    fi
+  else
+    touch "$rclone_path"
+    drive_enabled="disabled"
+    log_warn "Google Drive disabled. Telegram-only mode is active."
+  fi
+else
+  ensure_regular_file "$rclone_path" ""
+  if [ -s "$rclone_path" ]; then
+    drive_enabled="enabled"
+  else
+    drive_enabled="disabled"
+  fi
+fi
+
+# Hard safety guard before compose
+ensure_regular_file "$PROJECT_DIR/cookies_enabled.json" "{}"
+ensure_regular_file "$rclone_path" ""
+
+if [ ! -s "$PROJECT_DIR/cookies_enabled.json" ]; then
+  printf "{}" > "$PROJECT_DIR/cookies_enabled.json"
+fi
+
+if [ "$local_enabled" = "enabled" ]; then
+  generate_runtime_compose "1"
+else
+  generate_runtime_compose "0"
+fi
+
+printf "\n=== Setup summary ===\n"
+printf "Local Bot API : %s\n" "$local_enabled"
+printf "Google Drive  : %s\n" "$drive_enabled"
+printf "Bot token     : set\n"
+printf "Admin ID      : set\n"
+
+if ! prompt_yes_no "Proceed" "y"; then
+  log_warn "Setup canceled before launch."
+  exit 0
 fi
 
 log_step "Starting services"
@@ -334,6 +585,8 @@ start_compose
 printf "\n"
 log_ok "Setup completed."
 printf "Next checks:\n"
-printf "  - docker compose ps\n"
-printf "  - docker logs -f telegram-bot\n"
-printf "  - docker logs -f telegram-bot-api\n"
+printf "  - docker compose -f %s ps\n" "$RUNTIME_COMPOSE_FILE"
+printf "  - docker compose -f %s logs -f telegram-bot\n" "$RUNTIME_COMPOSE_FILE"
+if [ "$local_enabled" = "enabled" ]; then
+  printf "  - docker compose -f %s logs -f telegram-bot-api\n" "$RUNTIME_COMPOSE_FILE"
+fi
