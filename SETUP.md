@@ -64,7 +64,7 @@ docker compose ps
 - `ffmpeg`
 - `aria2c`
 - `rclone`
-- Local Telegram Bot API server reachable at `http://localhost:8081`
+- Local Telegram Bot API server configured and running
 
 ### 2. Install Python dependencies
 

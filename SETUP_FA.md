@@ -66,7 +66,7 @@ docker compose ps
 - `ffmpeg`
 - `aria2c`
 - `rclone`
-- دسترسی به Local Telegram Bot API server روی `http://localhost:8081`
+- Local Telegram Bot API server تنظیم و اجرا شده باشد
 
 ### 2. نصب وابستگی‌های پایتون
 

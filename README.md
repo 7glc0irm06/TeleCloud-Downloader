@@ -23,6 +23,7 @@
 ## 📖 Table of Contents
 
 - [✨ Features](#-features)
+- [🤔 Why TeleCloud-Downloader?](#-why-telecloud-downloader)
 - [🏗️ Architecture Overview](#-architecture-overview)
 - [🛠️ Tech Stack](#-tech-stack)
 - [🚀 Installation & Deployment](#-installation--deployment)
@@ -37,22 +38,6 @@
 ---
 
 ## ✨ Features
-
-### ☁️ Google Drive Integration via Rclone
-Upload downloaded files directly to Google Drive using Rclone, with flexible destination routing between Telegram and Drive based on your settings.
-
----
-
-### 🔥 Local Telegram Bot API Server — No More File Size Limits
-> This is the most critical architectural feature of TeleCloud-Downloader.
-
-Unlike standard bots that are capped by Telegram's default **20 MB download / 50 MB upload** limits, TeleCloud-Downloader runs its own **self-hosted Local Telegram Bot API Server** (`aiogram/telegram-bot-api`). This completely bypasses Telegram's cloud restrictions:
-
-- **📦 Supports files up to 2 GB** — download and send massive video, audio, and archive files without restrictions.
-- **⚡ Lightning-fast local file transfers** — In local mode, the bot reads files directly from shared local Bot API storage (`/var/lib/telegram-bot-api`) and falls back to cloud download only when needed.
-- **🔒 Private & self-contained** — All API traffic stays on your own server (`http://localhost:8081`), never touching Telegram's cloud API endpoint.
-
----
 
 ### 🚀 Multi-Engine Downloader
 
@@ -82,6 +67,31 @@ Send any **BitTorrent magnet link** (`magnet:?xt=urn:btih:...`) directly to the 
 #### 🔗 Direct Link Downloader
 Send any raw HTTP/HTTPS file URL and the bot will download it directly — PDFs, ZIPs, MP4s, or any other file type.
 
+---
+
+### ☁️ Google Drive Integration via Rclone
+
+Every downloaded file can be routed directly to your **Google Drive** using [Rclone](https://rclone.org/). No manual transfers, no storage worries:
+
+- **📂 Per-user Drive config** — Each user uploads their own `rclone.conf` file to the bot. The bot stores it privately and uses it for that user's Drive uploads.
+- **🔄 Three destination modes** — Toggle between `Telegram`, `Google Drive`, or `Ask every time` directly from the Settings panel.
+- **⚡ Auto-reroute for large files** — If a file exceeds 2 GB, the bot automatically uploads it to Drive even if Telegram was selected.
+- **🔗 Direct Drive links** — After every Drive upload, the bot sends a direct shareable link to the file.
+- **🗂️ Admin folder routing** — The admin can set a `DRIVE_FOLDER_ID` to control the default upload destination for their own uploads.
+- **🔧 Easy setup via Google Colab** — Setting up `rclone.conf` doesn't require any technical knowledge. The bot provides a ready-made Google Colab notebook: open it, run it, log in to your Google account, download the generated `rclone.conf`, and send it directly to the bot. Done.
+- **🔌 Connect & disconnect anytime** — Users can disconnect their Drive at any time from the Settings panel, which deletes their personal config from the bot.
+
+---
+
+### 🔥 Local Telegram Bot API Server — No More File Size Limits
+> This is the most critical architectural feature of TeleCloud-Downloader.
+
+Unlike standard bots that are capped by Telegram's default **20 MB download / 50 MB upload** limits, TeleCloud-Downloader runs its own **self-hosted Local Telegram Bot API Server** (`aiogram/telegram-bot-api`). This completely bypasses Telegram's cloud restrictions:
+
+- **📦 Supports files up to 2 GB** — download and send massive video, audio, and archive files without restrictions.
+- **⚡ Lightning-fast local file transfers** — In local mode, the bot reads files directly from shared local Bot API storage (`/var/lib/telegram-bot-api`) and falls back to cloud download only when needed.
+- **🔒 Private & self-contained** — All API traffic stays on your own server (`http://localhost:8081`), never touching Telegram's cloud API endpoint.
+
 ### 🎛️ Advanced Settings Panel
 - **Video Mode:** Cycle between `mp4`, `mkv`, or `default` format.
 - **Audio Mode:** Cycle between `mp3`, `m4a`, `flac`, or `default` format.
@@ -96,6 +106,27 @@ Automatically extracts and injects native YouTube timestamp chapters into downlo
 
 ### 🌐 Bilingual UI & 🍪 Cookie Manager
 Full Persian and English localization. Includes an interactive cookie manager (via `.txt` file uploads) to bypass age restrictions or access private playlists.
+
+---
+
+## 🤔 Why TeleCloud-Downloader?
+
+There are two common types of Telegram download bots:
+
+- **Heavy mirror/leech bots** — Extremely powerful, but complex to install, require significant server resources, and have no Persian UI.
+- **Simple yt-dlp bots** — Easy to use, but limited to yt-dlp only, no torrent, no Google Drive, no Local API.
+
+TeleCloud-Downloader sits in between — powerful enough for real use, simple enough for anyone to deploy:
+
+| | Heavy bots | Simple bots | TeleCloud-Downloader |
+|---|---|---|---|
+| Torrent support | ✅ | ❌ | ✅ |
+| Google Drive upload | ✅ | ❌ | ✅ |
+| 2 GB file support | ✅ | ❌ | ✅ |
+| One-command install | ❌ | ✅ | ✅ |
+| Persian UI | ❌ | ❌ | ✅ |
+| Persian subtitles | ❌ | ❌ | ✅ |
+| Per-user Drive config | ❌ | ❌ | ✅ |
 
 ---
 
@@ -154,13 +185,45 @@ Choose the guide that fits your situation:
 
 ## 💬 Usage & Commands
 
-### Authentication
+### 👥 Multi-User Access Control
 
-Access is approval-based:
+TeleCloud-Downloader supports multiple users with an approval-based access system.
 
-- `ADMIN_ID` always has access.
-- If `REGISTRATION_OPEN=true`, new users are auto-approved on `/start`.
-- If `REGISTRATION_OPEN=false`, users must send `/start` and request access; admin approves/rejects.
+**When a new user sends `/start`:**
+- If `REGISTRATION_OPEN=true` — the user is approved instantly and can start using the bot.
+- If `REGISTRATION_OPEN=false` — the user sees a join request button. The admin receives the request and can approve or reject it.
+
+**Admin commands for user management:**
+
+| Command | Description |
+|---|---|
+| `/adduser <id>` | Manually approve a user by Telegram ID |
+| `/deluser <id>` | Ban a user and immediately cancel all their active and queued tasks |
+| `/setquota <id> <files> <GB>` | Set a custom daily download quota for a specific user |
+| `/users` | Open the admin user management panel |
+| `/togglereg` | Toggle open/closed self-registration mode |
+| `/broadcast` | Send a message to all approved users |
+
+**Admin panel (`/users`)** allows browsing all users, viewing their details, enabling/disabling accounts, and adjusting quotas interactively.
+
+**Quota system:**
+- Global defaults are set via `MAX_DAILY_FILES` and `MAX_DAILY_BYTES` in `.env`.
+- The admin can override quotas per user individually with `/setquota` or from the admin panel.
+- Quotas reset daily.
+
+### 🙋 Regular User Capabilities
+
+Once approved, users can:
+
+- Send any supported URL or magnet link to start a download
+- Upload files/media directly to the bot — the bot sends them to Drive
+- Upload a personal `rclone.conf` to connect their own Google Drive
+- Toggle download destination between Telegram, Drive, or Ask-every-time
+- Adjust video/audio quality, format, subtitles, and chapters from the Settings panel
+- Manage cookies (add, enable, disable, rename, delete)
+- View their download queue and remove items from it
+- Cancel any running download or upload task at any time
+- Disconnect their personal Drive config from the Settings panel
 
 ### Downloading Media
 
@@ -203,7 +266,9 @@ Runtime configuration in `config.py` reads the following `.env` variables:
 | Variable | Required | Description |
 |---|---|---|
 | `DOWNLOADER_BOT_TOKEN` | ✅ Yes | Your Telegram Bot Token from @BotFather |
-| `DRIVE_FOLDER_ID` | ⬜ Optional | Default Google Drive root folder ID for admin uploads |
+| `TELEGRAM_API_ID` | ✅ Yes (Local mode) | Telegram API ID from my.telegram.org — required for Local Bot API mode |
+| `TELEGRAM_API_HASH` | ✅ Yes (Local mode) | Telegram API Hash from my.telegram.org — required for Local Bot API mode |
+| `DRIVE_FOLDER_ID` | ⬜ Optional | Default Google Drive root folder ID — applies to admin uploads only |
 | `ADMIN_ID` | ✅ Yes | Telegram numeric user ID for the bot administrator |
 | `REGISTRATION_OPEN` | ⬜ Optional | `true/false` toggle for self-registration on `/start` |
 | `MAX_DAILY_FILES` | ⬜ Optional | Default daily file-count quota per user |
