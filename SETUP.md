@@ -57,6 +57,28 @@ docker compose up -d --build
 docker compose ps
 ```
 
+### Optional: Quick Start Script (Beginner-Friendly)
+
+If you are deploying on a Linux server and prefer a one-command startup, you can use `start.sh`:
+
+```bash
+chmod +x start.sh
+./start.sh
+```
+
+What `start.sh` does:
+
+- Changes directory to `/root/bot`
+- Creates `cookies_enabled.json` if missing
+- Copies `rclone.conf` from `/root/.config/rclone/rclone.conf` if missing
+- Runs `docker compose up -d`
+
+Important:
+
+- This script assumes your project path is `/root/bot`.
+- It also assumes your server has `/root/.config/rclone/rclone.conf`.
+- If your paths differ, use the manual Docker steps above instead.
+
 ## Local Run (Non-Docker)
 
 ### 1. Prerequisites
