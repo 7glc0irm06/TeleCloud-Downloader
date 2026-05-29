@@ -275,28 +275,14 @@ def upload_to_gdrive_cancellable(
             else:
                 remote_file_path = drive_dest.rstrip('/') + '/' + name
 
-            # Retrieve file ID via lsjson (faster, no timeout issues)
+            # Get shareable link directly via rclone link
             direct_link = None
             raw_link    = None
-            lj = subprocess.run(
-                ["rclone", "lsjson", remote_file_path] + root_folder_args + config_args,
-                capture_output=True, text=True, timeout=30)
-            if lj.returncode == 0 and lj.stdout.strip():
-                import json as _json
-                try:
-                    items = _json.loads(lj.stdout)
-                    if items and items[0].get('ID'):
-                        file_id     = items[0]['ID']
-                        direct_link = f"https://drive.google.com/uc?export=download&id={file_id}"
-                except Exception:
-                    pass
-            # Fallback: rclone link
-            if not direct_link:
-                lr = subprocess.run(
-                    ["rclone", "link", remote_file_path] + root_folder_args + config_args,
-                    capture_output=True, text=True, timeout=60)
-                raw_link    = lr.stdout.strip() if lr.returncode == 0 else None
-                direct_link = _to_direct_download_link(raw_link) if raw_link else None
+            lr = subprocess.run(
+                ["rclone", "link", remote_file_path] + root_folder_args + config_args,
+                capture_output=True, text=True, timeout=60)
+            raw_link    = lr.stdout.strip() if lr.returncode == 0 else None
+            direct_link = _to_direct_download_link(raw_link) if raw_link else None
 
             safe_title     = html.escape(title)
             folder_display = f"BotDownloader/{source_folder}" + (f"/{folder_name}" if folder_name else "")

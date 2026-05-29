@@ -8,5 +8,7 @@ RUN apk add --no-cache aria2 curl unzip nodejs ffmpeg && \
     rm -rf rclone-* && \
     pip install -U yt-dlp "yt-dlp[default]" --break-system-packages
 
+ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 CMD ["python3", "main.py"]
+RUN mkdir -p /root/.config/yt-dlp && echo '--js-runtimes node' > /root/.config/yt-dlp/config
