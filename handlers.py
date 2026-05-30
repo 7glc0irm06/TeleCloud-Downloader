@@ -805,7 +805,27 @@ def _build_help_text(cid: int) -> str:
 # =============================================================
 # Link detection and routing
 # =============================================================
+def _resolve_redirect(url: str, timeout: int = 5) -> str:
+    """Follow HTTP redirects and return the final URL.
+    Fixes short links like on.soundcloud.com, t.co, bit.ly, etc.
+    """
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            url, method='HEAD',
+            headers={'User-Agent': 'Mozilla/5.0'}
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.url
+    except Exception:
+        return url
+
+
 def _handle_url(message, cid, text, state):
+    # ── Resolve redirect/short links before routing ──────────
+    if text.startswith(("http://", "https://")):
+        text = _resolve_redirect(text)
+    # ─────────────────────────────────────────────────────────
     cur = state
     if cur == 'ytdlp':
         if "youtube.com" in text or "youtu.be" in text:
