@@ -173,10 +173,10 @@ def upload_to_gdrive_cancellable(
         return
     # ───────────────────────────────────────────────────────────────────────
 
-    # ── FIX: only pass --drive-root-folder-id for admin (system config) ────
+    # ── Only pass --drive-root-folder-id for admin when configured ────
     from config import ADMIN_ID
     is_admin = str(uid) == str(ADMIN_ID)
-    root_folder_args = ["--drive-root-folder-id", DRIVE_FOLDER_ID] if is_admin else []
+    root_folder_args = ["--drive-root-folder-id", DRIVE_FOLDER_ID] if is_admin and DRIVE_FOLDER_ID else []
     # ───────────────────────────────────────────────────────────────────────
 
     try:

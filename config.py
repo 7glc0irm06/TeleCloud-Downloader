@@ -7,7 +7,7 @@ from collections import OrderedDict
 # Paths and constants
 # =============================================================
 TOKEN           = os.environ.get('DOWNLOADER_BOT_TOKEN')
-DRIVE_FOLDER_ID = os.environ.get('DRIVE_FOLDER_ID', '1n-I9Ipd2I5SL27HhFlaPzaMzRtFCHy-I')
+DRIVE_FOLDER_ID = os.environ.get('DRIVE_FOLDER_ID', '')
 DOWNLOAD_DIR    = '/root/downloads'
 COOKIES_DIR     = '/root/cookies'
 COOKIES_STATE   = '/root/cookies_enabled.json'
