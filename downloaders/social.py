@@ -142,7 +142,41 @@ def ytdlp_universal(task):
         try: safe_tg_call(bot.edit_message_text, t(cid, 'social_upload_preparing'), chat_id, msg.message_id)
         except Exception: pass
 
-        final_title = task.get('actual_title', f"{domain} Media")
+        # ── Byte quota accounting ──────────────────────────────
+        if cid != ADMIN_ID:
+            real_size = os.path.getsize(fp) if os.path.isfile(fp) else 0
+            db.record_download_bytes(cid, real_size)
+
+        # ── ID3 metadata fix for audio downloads ──────────────
+        if audio_only and fp and fp.endswith('.mp3'):
+            raw_title = info.get('title', '')
+            uploader  = info.get('uploader', '') or info.get('creator', '') or info.get('channel', '')
+            artist    = info.get('artist') or info.get('creator') or info.get('uploader') or ''
+
+            if ' - ' in raw_title and not artist:
+                parts  = raw_title.split(' - ', 1)
+                artist = parts[0].strip()
+                title  = parts[1].strip()
+            else:
+                title  = info.get('track') or raw_title
+                artist = artist or uploader or 'Unknown'
+
+            try:
+                from mutagen.id3 import ID3, TIT2, TPE1, ID3NoHeaderError
+                try:
+                    tags = ID3(fp)
+                except ID3NoHeaderError:
+                    tags = ID3()
+                tags['TIT2'] = TIT2(encoding=3, text=title)
+                tags['TPE1'] = TPE1(encoding=3, text=artist)
+                tags.save(fp)
+            except Exception:
+                pass
+
+            final_title = title
+        else:
+            final_title = task.get('actual_title', f"{domain} Media")
+
         task_info = {
             'title': final_title,
             'source': domain,
@@ -150,11 +184,6 @@ def ytdlp_universal(task):
             '_stop': task.get('_stop'),
             'user_id': cid,
         }
-
-        # ── Byte quota accounting ──────────────────────────────
-        if cid != ADMIN_ID:
-            real_size = os.path.getsize(fp) if os.path.isfile(fp) else 0
-            db.record_download_bytes(cid, real_size)
 
         smart_dest(fp, msg, dest, folder_name=None, task_info=task_info)
         cleanup_path(folder)
@@ -284,17 +313,35 @@ def process_soundcloud_playlist(task):
                     real_size = os.path.getsize(fp) if os.path.isfile(fp) else 0
                     db.record_download_bytes(cid, real_size)
 
-                # Bug 2 fix: extract clean artist/title from yt-dlp info
-                track_artist = (dl_info.get('artist')
-                                or dl_info.get('uploader')
-                                or 'Unknown')
-                track_title  = (dl_info.get('track')
-                                or dl_info.get('title')
-                                or os.path.basename(fp))
+                # Parse artist/title from the raw title string.
+                # SoundCloud doesn't provide a separate 'artist' field —
+                # the title contains the full "Artist - Title" string.
+                raw_title = dl_info.get('title', '')
+                uploader  = dl_info.get('uploader', '') or dl_info.get('creator', '')
 
-                # Bug 1 fix: send a NEW per-track message (like YouTube playlist)
-                # so the user sees feedback after each track completes.
-                display_name = f"{track_artist} - {track_title}" if track_artist != 'Unknown' else track_title
+                if ' - ' in raw_title:
+                    parts = raw_title.split(' - ', 1)
+                    track_artist = parts[0].strip()
+                    track_title  = parts[1].strip()
+                else:
+                    track_artist = uploader or 'Unknown'
+                    track_title  = raw_title or os.path.basename(fp)
+
+                # Write correct ID3 tags using mutagen (already in requirements)
+                try:
+                    from mutagen.id3 import ID3, TIT2, TPE1, ID3NoHeaderError
+                    try:
+                        audio = ID3(fp)
+                    except ID3NoHeaderError:
+                        audio = ID3()
+                    audio['TIT2'] = TIT2(encoding=3, text=track_title)
+                    audio['TPE1'] = TPE1(encoding=3, text=track_artist)
+                    audio.save(fp)
+                except Exception as meta_err:
+                    logger.warning("Could not write ID3 tags to %s: %s", fp, meta_err)
+
+                # Send a NEW per-track message (like YouTube playlist)
+                display_name = f"{track_artist} - {track_title}" if track_artist not in ('Unknown', '') else track_title
                 sub = bot.send_message(
                     chat_id,
                     t(cid, 'uploading_item',
