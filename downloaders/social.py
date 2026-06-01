@@ -86,6 +86,8 @@ def ytdlp_universal(task):
         if audio_quality != 'default':
             pp['preferredquality'] = audio_quality
         postprocessors.append(pp)
+        # Embed thumbnail as album art in the audio file
+        postprocessors.append({'key': 'EmbedThumbnail', 'already_have_thumbnail': False})
 
     if embed_chapters and not audio_only:
         postprocessors.append({'key': 'FFmpegMetadata', 'add_chapters': True})
@@ -112,6 +114,7 @@ def ytdlp_universal(task):
         'nocheckcertificate':  True,
         'format_sort':         ['res', 'ext:mp4:m4a'],
         'postprocessors':      postprocessors,
+        'writethumbnail':      audio_only,  # download thumbnail for audio cover art
         'http_headers': {
             'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Accept-Language': 'en-US,en;q=0.9',
@@ -150,8 +153,12 @@ def ytdlp_universal(task):
         # ── ID3 metadata fix for audio downloads ──────────────
         if audio_only and fp and fp.endswith('.mp3'):
             raw_title = info.get('title', '')
-            uploader  = info.get('uploader', '') or info.get('creator', '') or info.get('channel', '')
-            artist    = info.get('artist') or info.get('creator') or info.get('uploader') or ''
+            uploader  = (info.get('uploader', '')
+                         or info.get('creator', '')
+                         or info.get('channel', ''))
+            artist    = (info.get('artist')
+                         or info.get('creator')
+                         or info.get('uploader') or '')
 
             if ' - ' in raw_title and not artist:
                 parts  = raw_title.split(' - ', 1)
@@ -161,14 +168,35 @@ def ytdlp_universal(task):
                 title  = info.get('track') or raw_title
                 artist = artist or uploader or 'Unknown'
 
+            album = info.get('album', '')
+            year  = str(info.get('release_year') or info.get('upload_date', '')[:4] or '')
+
             try:
-                from mutagen.id3 import ID3, TIT2, TPE1, ID3NoHeaderError
+                from mutagen.id3 import (ID3, TIT2, TPE1, TALB, TDRC,
+                                         APIC, ID3NoHeaderError)
                 try:
                     tags = ID3(fp)
                 except ID3NoHeaderError:
                     tags = ID3()
                 tags['TIT2'] = TIT2(encoding=3, text=title)
                 tags['TPE1'] = TPE1(encoding=3, text=artist)
+                if album:
+                    tags['TALB'] = TALB(encoding=3, text=album)
+                if year and year != '0':
+                    tags['TDRC'] = TDRC(encoding=3, text=year)
+
+                # Embed cover art from thumbnail if available
+                thumb_base = os.path.splitext(fp)[0]
+                for ext in ('.jpg', '.png', '.webp'):
+                    thumb_path = thumb_base + ext
+                    if os.path.isfile(thumb_path):
+                        mime = 'image/jpeg' if ext == '.jpg' else f'image/{ext[1:]}'
+                        with open(thumb_path, 'rb') as img:
+                            tags['APIC'] = APIC(
+                                encoding=3, mime=mime, type=3,
+                                desc='Cover', data=img.read())
+                        break
+
                 tags.save(fp)
             except Exception:
                 pass
