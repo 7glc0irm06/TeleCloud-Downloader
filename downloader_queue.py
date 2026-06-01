@@ -12,6 +12,9 @@ logger = logging.getLogger(__name__)
 
 # The single shared executor; initialised by start_worker().
 _executor: ThreadPoolExecutor | None = None
+_dispatcher_thread: threading.Thread | None = None
+_dispatcher_stop = threading.Event()
+_worker_lock = threading.RLock()
 
 # Round-robin cursor (chat_id of the last dispatched task).
 # Accessed only by the single dispatcher thread.
@@ -174,29 +177,43 @@ def _dispatcher() -> None:
       • Retried tasks always start with a clean (unset) stop signal.
       • The event is available to the downloader closures via task['_stop'].
     """
-    while True:
+    while not _dispatcher_stop.is_set():
         # Throttle submissions: never feed the executor if all worker slots are busy.
         total_active, active_by_chat = _snapshot_active_by_chat()
         if total_active >= MAX_CONCURRENT_DOWNLOADS:
-            time.sleep(0.5)
+            _dispatcher_stop.wait(0.5)
             continue
 
         task = None
         with config.queue_lock:
-            if config.pending_queue:
+            if config.pending_queue and not _dispatcher_stop.is_set():
                 best_index = _pick_fair_pending_index(config.pending_queue, active_by_chat)
                 if best_index is not None:
                     task = config.pending_queue.pop(best_index)
 
         if task is None:
-            time.sleep(0.5)
+            _dispatcher_stop.wait(0.5)
             continue
 
         # Inject a FRESH per-task cancellation event (always overwrite so
         # retried tasks are not pre-cancelled from the previous attempt).
         task['_stop'] = threading.Event()
 
-        _executor.submit(_run_task, task)
+        with _worker_lock:
+            executor = _executor
+        if executor is None or _dispatcher_stop.is_set():
+            with config.queue_lock:
+                config.pending_queue.insert(0, task)
+            continue
+
+        try:
+            executor.submit(_run_task, task)
+        except RuntimeError:
+            with config.queue_lock:
+                config.pending_queue.insert(0, task)
+            if not _dispatcher_stop.is_set():
+                logger.exception("Failed to submit queued download task")
+                _dispatcher_stop.wait(0.5)
 
 
 # =============================================================
@@ -266,14 +283,68 @@ def start_worker() -> None:
     MAX_CONCURRENT_DOWNLOADS (env: MAX_CONCURRENT_DOWNLOADS, default 2)
     controls how many downloads can run simultaneously.
     """
-    global _executor
-    _executor = ThreadPoolExecutor(
-        max_workers=MAX_CONCURRENT_DOWNLOADS,
-        thread_name_prefix='dl_worker',
+    global _executor, _dispatcher_thread
+    with _worker_lock:
+        if _executor is not None and _dispatcher_thread is not None and _dispatcher_thread.is_alive():
+            logger.info("Download pool already running (max_workers=%d)", MAX_CONCURRENT_DOWNLOADS)
+            return
+
+        _dispatcher_stop.clear()
+        config.stop_event.clear()
+        _executor = ThreadPoolExecutor(
+            max_workers=MAX_CONCURRENT_DOWNLOADS,
+            thread_name_prefix='dl_worker',
+        )
+        _dispatcher_thread = threading.Thread(
+            target=_dispatcher,
+            daemon=True,
+            name='dl_dispatcher',
+        )
+        _dispatcher_thread.start()
+        logger.info("Download pool started (max_workers=%d)", MAX_CONCURRENT_DOWNLOADS)
+
+
+def stop_worker(cancel_pending: bool = True) -> None:
+    """
+    Stop the dispatcher and ask active downloads/uploads to cancel.
+
+    Running downloader functions observe their per-task ``_stop`` event.
+    Google Drive uploads also observe ``config.stop_event``.
+    """
+    global _executor, _dispatcher_thread
+
+    with _worker_lock:
+        executor = _executor
+        dispatcher = _dispatcher_thread
+        _dispatcher_stop.set()
+        config.stop_event.set()
+
+        if cancel_pending:
+            with config.queue_lock:
+                config.pending_queue.clear()
+
+        with config.current_tasks_lock:
+            active_tasks = list(config.current_tasks.values())
+
+        for task in active_tasks:
+            stop_event = task.get('_stop')
+            if stop_event is not None:
+                try:
+                    stop_event.set()
+                except Exception:
+                    logger.exception("Could not set task stop event")
+
+        _executor = None
+        _dispatcher_thread = None
+
+    if dispatcher is not None and dispatcher.is_alive():
+        dispatcher.join(timeout=2)
+
+    if executor is not None:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+    logger.info(
+        "Download pool stopped (cancel_pending=%s, active_signalled=%d)",
+        cancel_pending,
+        len(active_tasks),
     )
-    threading.Thread(
-        target=_dispatcher,
-        daemon=True,
-        name='dl_dispatcher',
-    ).start()
-    logger.info("Download pool started (max_workers=%d)", MAX_CONCURRENT_DOWNLOADS)
