@@ -209,11 +209,14 @@ def ytdlp_universal(task):
                 pass
 
             final_title = track_title
+            final_artist = track_artist
         else:
             final_title = task.get('actual_title', f"{domain} Media")
+            final_artist = None
 
         task_info = {
             'title': final_title,
+            'artist': final_artist,
             'source': domain,
             'quality': quality_label,
             '_stop': task.get('_stop'),
@@ -387,6 +390,7 @@ def process_soundcloud_playlist(task):
 
                 task_info = {
                     'title':   track_title,
+                    'artist':  track_artist,
                     'source':  'SoundCloud',
                     'quality': '🎵 Audio',
                     '_stop':   task.get('_stop'),

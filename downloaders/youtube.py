@@ -81,6 +81,7 @@ def _build_ydl_opts(task: dict, folder: str, hook) -> dict:
         if audio_quality != 'default':
             pp['preferredquality'] = audio_quality
         postprocessors.append(pp)
+        postprocessors.append({'key': 'EmbedThumbnail', 'already_have_thumbnail': False})
 
     # ── Task 5: Chapter / metadata embedding ──────────────────────────────
     # NOTE: FFmpegMetadata MUST be appended AFTER subtitle PPs so it runs
@@ -138,6 +139,7 @@ def _build_ydl_opts(task: dict, folder: str, hook) -> dict:
         'noplaylist':          True,
         'merge_output_format': merge_fmt,
         'postprocessors':      postprocessors,
+        'writethumbnail':      audio_only,
         'quiet':               True,
         'no_warnings':         True,
         'js_runtimes':         {'node': {}},
@@ -260,8 +262,66 @@ def process_youtube_download(task):
             db.record_download_bytes(cid, real_size)
 
         final_title = task.get('actual_title', title_kw)
+        final_artist = None
+        if audio_only:
+            raw_title = info.get('title', '')
+            track_title  = (info.get('track')
+                            or info.get('alt_title')
+                            or '')
+            track_artist = (info.get('artist')
+                            or info.get('creator')
+                            or '')
+
+            if not track_title and ' - ' in raw_title:
+                parts        = raw_title.split(' - ', 1)
+                track_artist = track_artist or parts[0].strip()
+                track_title  = parts[1].strip()
+            elif not track_title:
+                track_title = raw_title
+
+            if not track_artist:
+                track_artist = (info.get('uploader')
+                                or info.get('channel')
+                                or 'Unknown')
+
+            final_title = track_title or final_title
+            final_artist = track_artist
+
+            if file_path and os.path.splitext(file_path)[1].lower() == '.mp3':
+                album = info.get('album', '') or ''
+                year  = str(info.get('release_year') or info.get('upload_date', '')[:4] or '')
+
+                try:
+                    from mutagen.id3 import ID3, TIT2, TPE1, TALB, TDRC, APIC, ID3NoHeaderError
+                    try:
+                        tags = ID3(file_path)
+                    except ID3NoHeaderError:
+                        tags = ID3()
+                    tags['TIT2'] = TIT2(encoding=3, text=final_title)
+                    tags['TPE1'] = TPE1(encoding=3, text=final_artist)
+                    if album:
+                        tags['TALB'] = TALB(encoding=3, text=album)
+                    if year and year.isdigit() and year != '0':
+                        tags['TDRC'] = TDRC(encoding=3, text=year)
+
+                    thumb_base = os.path.splitext(file_path)[0]
+                    for ext in ('.jpg', '.jpeg', '.png', '.webp'):
+                        thumb_path = thumb_base + ext
+                        if os.path.isfile(thumb_path):
+                            mime = 'image/jpeg' if ext in ('.jpg', '.jpeg') else f'image/{ext[1:]}'
+                            with open(thumb_path, 'rb') as img:
+                                tags['APIC'] = APIC(
+                                    encoding=3, mime=mime, type=3,
+                                    desc='Cover', data=img.read())
+                            break
+
+                    tags.save(file_path)
+                except Exception as meta_err:
+                    logger.warning("Could not write YouTube ID3 tags to %s: %s", file_path, meta_err)
+
         task_info   = {
             'title':    final_title,
+            'artist':   final_artist,
             'source':   'YouTube',
             'quality':  quality_label,
             'extra_msg': subtitle_warning,  # appended by smart_dest / upload completion

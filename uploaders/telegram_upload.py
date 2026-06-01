@@ -3,6 +3,38 @@ from config import bot
 from utils import fmt_size, cleanup_path, friendly_error, safe_tg_call
 from uploaders.gdrive_upload import upload_to_gdrive_cancellable
 
+_AUDIO_EXTS = ('.mp3', '.m4a', '.ogg', '.flac', '.wav')
+
+
+def _clean_audio_meta(value, limit=64):
+    if value is None:
+        return None
+    value = str(value).strip()
+    if not value:
+        return None
+    return value[:limit]
+
+
+def _audio_metadata_for_telegram(file_path: str, task_info: dict, fallback_name: str):
+    title = task_info.get('title')
+    performer = task_info.get('artist') or task_info.get('performer')
+
+    if not title or not performer:
+        try:
+            from mutagen import File as MutagenFile
+            audio = MutagenFile(file_path, easy=True)
+            if audio:
+                title = title or (audio.get('title') or [None])[0]
+                performer = performer or (audio.get('artist') or [None])[0]
+        except Exception:
+            pass
+
+    return (
+        _clean_audio_meta(title or os.path.splitext(fallback_name)[0]),
+        _clean_audio_meta(performer),
+    )
+
+
 def upload_file_to_telegram(file_path: str, status_msg, task_info=None):
     from locales import t
     if task_info is None:
@@ -51,8 +83,14 @@ def upload_file_to_telegram(file_path: str, status_msg, task_info=None):
             ext  = os.path.splitext(name)[1].lower()
             if ext in ('.mp4', '.mkv', '.avi', '.mov', '.webm'):
                 bot.send_video(chat_id, f, caption=name, timeout=upload_timeout)
-            elif ext in ('.mp3', '.m4a', '.ogg', '.flac', '.wav'):
-                bot.send_audio(chat_id, f, caption=name, timeout=upload_timeout)
+            elif ext in _AUDIO_EXTS:
+                audio_title, performer = _audio_metadata_for_telegram(file_path, task_info, name)
+                kwargs = {'caption': name, 'timeout': upload_timeout}
+                if audio_title:
+                    kwargs['title'] = audio_title
+                if performer:
+                    kwargs['performer'] = performer
+                bot.send_audio(chat_id, f, **kwargs)
             else:
                 bot.send_document(chat_id, f, caption=name, timeout=upload_timeout)
 
