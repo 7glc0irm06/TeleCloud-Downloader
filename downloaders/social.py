@@ -253,6 +253,8 @@ def process_soundcloud_playlist(task):
         if audio_quality != 'default':
             pp['preferredquality'] = audio_quality
         postprocessors.append(pp)
+        # Bug 2 fix: add FFmpegMetadata to write correct ID3 artist/title tags
+        postprocessors.append({'key': 'FFmpegMetadata', 'add_metadata': True})
 
         ydl_opts = {
             'format':              'bestaudio/best',
@@ -261,6 +263,7 @@ def process_soundcloud_playlist(task):
             'no_warnings':         True,
             'windowsfilenames':    True,
             'noplaylist':          True,
+            'addmetadata':         True,
             'postprocessors':      postprocessors,
         }
         if cf:
@@ -281,7 +284,23 @@ def process_soundcloud_playlist(task):
                     real_size = os.path.getsize(fp) if os.path.isfile(fp) else 0
                     db.record_download_bytes(cid, real_size)
 
-                track_title = dl_info.get('title', os.path.basename(fp))
+                # Bug 2 fix: extract clean artist/title from yt-dlp info
+                track_artist = (dl_info.get('artist')
+                                or dl_info.get('uploader')
+                                or 'Unknown')
+                track_title  = (dl_info.get('track')
+                                or dl_info.get('title')
+                                or os.path.basename(fp))
+
+                # Bug 1 fix: send a NEW per-track message (like YouTube playlist)
+                # so the user sees feedback after each track completes.
+                display_name = f"{track_artist} - {track_title}" if track_artist != 'Unknown' else track_title
+                sub = bot.send_message(
+                    chat_id,
+                    t(cid, 'uploading_item',
+                      idx=idx, total=total,
+                      name=display_name))
+
                 task_info = {
                     'title':   track_title,
                     'source':  'SoundCloud',
@@ -289,7 +308,8 @@ def process_soundcloud_playlist(task):
                     '_stop':   task.get('_stop'),
                     'user_id': cid,
                 }
-                smart_dest(fp, msg, dest, folder_name=safe_title, task_info=task_info)
+                # Pass the per-track sub message (not the shared progress msg)
+                smart_dest(fp, sub, dest, folder_name=safe_title, task_info=task_info)
                 done += 1
             else:
                 done += 1
