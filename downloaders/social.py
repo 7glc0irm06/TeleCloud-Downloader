@@ -153,44 +153,51 @@ def ytdlp_universal(task):
         # ── ID3 metadata fix for audio downloads ──────────────
         if audio_only and fp and fp.endswith('.mp3'):
             raw_title = info.get('title', '')
-            uploader  = (info.get('uploader', '')
-                         or info.get('creator', '')
-                         or info.get('channel', ''))
-            artist    = (info.get('artist')
-                         or info.get('creator')
-                         or info.get('uploader') or '')
 
-            if ' - ' in raw_title and not artist:
-                parts  = raw_title.split(' - ', 1)
-                artist = parts[0].strip()
-                title  = parts[1].strip()
-            else:
-                title  = info.get('track') or raw_title
-                artist = artist or uploader or 'Unknown'
+            # Try yt-dlp's dedicated fields first (YouTube Music provides these)
+            track_title  = (info.get('track')
+                            or info.get('alt_title')
+                            or '')
+            track_artist = (info.get('artist')
+                            or info.get('creator')
+                            or '')
 
-            album = info.get('album', '')
+            # Fallback: parse "Artist - Title" from the raw title string
+            if not track_title and ' - ' in raw_title:
+                parts        = raw_title.split(' - ', 1)
+                track_artist = track_artist or parts[0].strip()
+                track_title  = parts[1].strip()
+            elif not track_title:
+                track_title = raw_title
+
+            # Final fallback for artist
+            if not track_artist:
+                track_artist = (info.get('uploader')
+                                or info.get('channel')
+                                or 'Unknown')
+
+            album = info.get('album', '') or ''
             year  = str(info.get('release_year') or info.get('upload_date', '')[:4] or '')
 
             try:
-                from mutagen.id3 import (ID3, TIT2, TPE1, TALB, TDRC,
-                                         APIC, ID3NoHeaderError)
+                from mutagen.id3 import ID3, TIT2, TPE1, TALB, TDRC, APIC, ID3NoHeaderError
                 try:
                     tags = ID3(fp)
                 except ID3NoHeaderError:
                     tags = ID3()
-                tags['TIT2'] = TIT2(encoding=3, text=title)
-                tags['TPE1'] = TPE1(encoding=3, text=artist)
+                tags['TIT2'] = TIT2(encoding=3, text=track_title)
+                tags['TPE1'] = TPE1(encoding=3, text=track_artist)
                 if album:
                     tags['TALB'] = TALB(encoding=3, text=album)
-                if year and year != '0':
+                if year and year.isdigit() and year != '0':
                     tags['TDRC'] = TDRC(encoding=3, text=year)
 
-                # Embed cover art from thumbnail if available
+                # Embed cover art - search for thumbnail file yt-dlp downloaded
                 thumb_base = os.path.splitext(fp)[0]
-                for ext in ('.jpg', '.png', '.webp'):
+                for ext in ('.jpg', '.jpeg', '.png', '.webp'):
                     thumb_path = thumb_base + ext
                     if os.path.isfile(thumb_path):
-                        mime = 'image/jpeg' if ext == '.jpg' else f'image/{ext[1:]}'
+                        mime = 'image/jpeg' if ext in ('.jpg', '.jpeg') else f'image/{ext[1:]}'
                         with open(thumb_path, 'rb') as img:
                             tags['APIC'] = APIC(
                                 encoding=3, mime=mime, type=3,
@@ -201,7 +208,7 @@ def ytdlp_universal(task):
             except Exception:
                 pass
 
-            final_title = title
+            final_title = track_title
         else:
             final_title = task.get('actual_title', f"{domain} Media")
 
@@ -312,6 +319,7 @@ def process_soundcloud_playlist(task):
         postprocessors.append(pp)
         # Bug 2 fix: add FFmpegMetadata to write correct ID3 artist/title tags
         postprocessors.append({'key': 'FFmpegMetadata', 'add_metadata': True})
+        postprocessors.append({'key': 'EmbedThumbnail', 'already_have_thumbnail': False})
 
         ydl_opts = {
             'format':              'bestaudio/best',
@@ -322,6 +330,7 @@ def process_soundcloud_playlist(task):
             'noplaylist':          True,
             'addmetadata':         True,
             'postprocessors':      postprocessors,
+            'writethumbnail':      True,
         }
         if cf:
             ydl_opts['cookiefile'] = cf
