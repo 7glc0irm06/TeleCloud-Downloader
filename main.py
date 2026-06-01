@@ -1,8 +1,9 @@
-﻿import time
 import logging
+import signal
+import threading
 from telebot import types
 from config import bot, ADMIN_ID
-from downloader_queue import start_worker
+from downloader_queue import start_worker, stop_worker
 
 import handlers
 import callbacks
@@ -12,6 +13,9 @@ logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
 )
+
+logger = logging.getLogger(__name__)
+_shutdown_requested = threading.Event()
 
 
 def _configure_bot_commands():
@@ -47,17 +51,54 @@ def _configure_bot_commands():
         )
 
 
-def main():
-    start_worker()
-    bot.remove_webhook()
-    _configure_bot_commands()
-    print('Bot is running...')
-    while True:
+def _request_shutdown(signum=None, frame=None):
+    if _shutdown_requested.is_set():
+        return
+
+    _shutdown_requested.set()
+    if signum is not None:
+        logger.info("Shutdown requested by signal %s", signum)
+    else:
+        logger.info("Shutdown requested")
+
+    try:
+        bot.stop_polling()
+    except Exception:
+        logger.exception("Error while stopping Telegram polling")
+
+    stop_worker(cancel_pending=True)
+
+
+def _register_signal_handlers():
+    for sig in (signal.SIGINT, signal.SIGTERM):
         try:
-            bot.infinity_polling(timeout=30, long_polling_timeout=30)
-        except Exception as e:
-            print(f'Error: {e} - restarting in 5 seconds...')
-            time.sleep(5)
+            signal.signal(sig, _request_shutdown)
+        except (AttributeError, ValueError):
+            logger.debug("Signal %s is not available in this runtime", sig)
+
+
+def main():
+    _register_signal_handlers()
+    start_worker()
+    try:
+        bot.remove_webhook()
+        _configure_bot_commands()
+        logger.info("Bot is running")
+
+        while not _shutdown_requested.is_set():
+            try:
+                bot.infinity_polling(timeout=30, long_polling_timeout=30)
+            except KeyboardInterrupt:
+                _request_shutdown()
+                break
+            except Exception:
+                if _shutdown_requested.is_set():
+                    break
+                logger.exception("Polling failed; restarting in 5 seconds")
+                if _shutdown_requested.wait(5):
+                    break
+    finally:
+        _request_shutdown()
 
 
 if __name__ == '__main__':

@@ -1,5 +1,6 @@
 import os
 from downloader_queue import enqueue
+import logging
 import re
 import threading
 import time
@@ -18,6 +19,8 @@ from downloaders.torrent import _do_torrent_download
 from locales import t
 from user_langs import set_lang
 import db
+
+logger = logging.getLogger(__name__)
 
 
 PL_FMT_MAP = {
@@ -621,8 +624,8 @@ def _refresh_queue_msg(cid, mid):
         lines.append(t(cid, 'queue_empty'))
         try:
             bot.edit_message_text("\n".join(lines) + f"\n\n💾 {get_free_space()}", cid, mid)
-        except Exception as e:
-            print(f"REFRESH QUEUE ERROR: {e}", flush=True)
+        except Exception:
+            logger.exception("Could not refresh queue message for chat %s message %s", cid, mid)
     else:
         lines.append(t(cid, 'queue_waiting', count=len(q_items)))
         for i, item in enumerate(q_items):
@@ -638,8 +641,8 @@ def _refresh_queue_msg(cid, mid):
         try:
             bot.edit_message_text(
                 "\n".join(lines) + f"\n\n💾 {get_free_space()}", cid, mid, reply_markup=markup)
-        except Exception as e:
-            print(f"REFRESH QUEUE ERROR: {e}", flush=True)
+        except Exception:
+            logger.exception("Could not refresh queue message for chat %s message %s", cid, mid)
 
 
 # =============================================================
