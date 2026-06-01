@@ -296,8 +296,22 @@ def cmd_setquota(message):
         return
     bytes_ = int(gb * 1024 ** 3)
     db.set_custom_quota(uid, files, bytes_)
-    bot.reply_to(message, t(cid, 'admin_setquota_done',
-                             user_id=uid, files=files, gb=gb))
+    # 5-arg form: /setquota <id> <daily_files> <daily_GB> <monthly_files> <monthly_GB>
+    if len(parts) >= 6:
+        try:
+            m_files = int(parts[4])
+            m_gb    = float(parts[5])
+        except ValueError:
+            bot.reply_to(message, t(cid, 'admin_setquota_usage'))
+            return
+        m_bytes = int(m_gb * 1024 ** 3)
+        db.set_custom_quota_monthly(uid, m_files, m_bytes)
+        bot.reply_to(message, t(cid, 'admin_setquota_done_full',
+                                 user_id=uid, files=files, gb=gb,
+                                 m_files=m_files, m_gb=m_gb))
+    else:
+        bot.reply_to(message, t(cid, 'admin_setquota_done',
+                                 user_id=uid, files=files, gb=gb))
 
 
 # =============================================================
@@ -612,6 +626,10 @@ def handle_text(message):
         _handle_playlist_count(cid, text, state)
         return
 
+    if isinstance(state, str) and state.startswith('await_scpl_count|'):
+        _handle_scpl_custom_count(cid, text, state)
+        return
+
     if cid == ADMIN_ID and state == 'await_admin_user_search':
         user_state[cid] = None
         from callbacks import render_admin_users_list
@@ -765,7 +783,7 @@ def _build_help_text(cid: int) -> str:
                 "\n\n🔐 دستورات ادمین:\n"
                 "/adduser <id>\n"
                 "/deluser <id>\n"
-                "/setquota <id> <files> <GB>\n"
+                "/setquota <id> <files> <GB> [<monthly_files> <monthly_GB>]\n"
                 "/users\n"
                 "/togglereg\n"
                 "/broadcast <message>"
@@ -794,7 +812,7 @@ def _build_help_text(cid: int) -> str:
             "\n\n🔐 Admin commands:\n"
             "/adduser <id>\n"
             "/deluser <id>\n"
-            "/setquota <id> <files> <GB>\n"
+            "/setquota <id> <files> <GB> [<monthly_files> <monthly_GB>]\n"
             "/users\n"
             "/togglereg\n"
             "/broadcast <message>"
@@ -1064,7 +1082,119 @@ def _url_is_playlist(url: str) -> bool:
     return True   # safe to treat as a single item
 
 
+# =============================================================
+# SoundCloud playlist detection & initial handler
+# =============================================================
+def _is_soundcloud_playlist(url: str) -> bool:
+    """Return True only when the URL is a SoundCloud playlist/set.
+    Single track URLs like soundcloud.com/artist/track-name return False.
+    """
+    parsed = urlparse(url)
+    host   = parsed.netloc.replace('www.', '').lower()
+    if host not in ('soundcloud.com', 'm.soundcloud.com', 'on.soundcloud.com'):
+        return False
+    return '/sets/' in parsed.path
+
+
+def _handle_soundcloud_playlist(message, cid, text):
+    """Fetch SoundCloud playlist metadata and show a download button."""
+    msg = bot.reply_to(message, t(cid, 'sc_fetching_playlist'))
+
+    cf = active_cookies_file(text, cid)
+    opts = {'extract_flat': True, 'quiet': True}
+    if cf:
+        opts['cookiefile'] = cf
+
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(text, download=False)
+    except Exception as e:
+        try:
+            bot.edit_message_text(
+                t(cid, 'sc_playlist_fetch_error', error=friendly_error(str(e), cid=cid)),
+                cid, msg.message_id)
+        except Exception:
+            pass
+        return
+
+    title   = info.get('title', 'SoundCloud Playlist')
+    entries = list(info.get('entries', []))
+    count   = len(entries)
+
+    # Store the URL keyed by the status message's message_id
+    with cache_lock:
+        url_cache[msg.message_id] = text
+
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton(
+        t(cid, 'sc_playlist_audio_btn'),
+        callback_data=f"scpl_info|{msg.message_id}",
+    ))
+
+    try:
+        bot.edit_message_text(
+            t(cid, 'sc_playlist_info', title=title, count=count),
+            cid, msg.message_id, reply_markup=markup)
+    except Exception:
+        pass
+
+
+def _handle_scpl_custom_count(cid, text, state):
+    """Handle user typing a custom track count for SoundCloud playlist."""
+    parts = state.split('|')
+    mid   = int(parts[1])
+    try:
+        count = int(text.strip())
+        if count < 1:
+            raise ValueError()
+    except Exception:
+        bot.send_message(cid, t(cid, 'playlist_invalid_count'))
+        return
+
+    user_state[cid] = None
+
+    with cache_lock:
+        url = url_cache.get(mid)
+    if not url:
+        bot.send_message(cid, t(cid, 'playlist_link_expired'))
+        return
+
+    if not should_ask_dest(cid):
+        dest = get_dest(cid)
+        enqueue({
+            'type': 'soundcloud_playlist',
+            'chat_id': cid,
+            'url': url,
+            'count': count,
+            'dest': dest,
+            'audio_only': True,
+            'format': 'bestaudio/best',
+        })
+        bot.send_message(
+            cid,
+            t(cid, 'sc_playlist_queued',
+              count=count,
+              dest_icon='📱' if dest == 'tg' else '☁️'))
+    else:
+        dest_mk = types.InlineKeyboardMarkup()
+        dest_mk.row(
+            types.InlineKeyboardButton(t(cid, 'btn_tg'),
+                callback_data=f"scpl_dest|{mid}|{count}|tg"),
+            types.InlineKeyboardButton(t(cid, 'btn_gd'),
+                callback_data=f"scpl_dest|{mid}|{count}|gd"),
+        )
+        bot.send_message(
+            cid,
+            t(cid, 'sc_playlist_dest_ask', count=count),
+            reply_markup=dest_mk)
+
+
 def _handle_social_link(message, cid, text):
+    # ── SoundCloud playlist intercept ────────────────────────────
+    if _is_soundcloud_playlist(text):
+        _handle_soundcloud_playlist(message, cid, text)
+        return
+
     domain = urlparse(text).netloc.replace('www.', '')
     msg    = bot.reply_to(message, t(cid, 'fetching_info', domain=domain))
     key    = (cid, msg.message_id)
@@ -1281,10 +1411,10 @@ def _handle_playlist_count(cid, text, state):
 # Profile stats helper
 # =============================================================
 def _send_profile_stats(cid: int) -> None:
-    """Send the user their daily usage stats from the DB.
+    """Send the user their daily + monthly usage stats from the DB.
     Admin gets global system-wide stats instead of a personal quota view.
     """
-    from config import MAX_DAILY_FILES, MAX_DAILY_BYTES, ADMIN_ID
+    from config import MAX_DAILY_FILES, MAX_DAILY_BYTES, MAX_MONTHLY_FILES, MAX_MONTHLY_BYTES, ADMIN_ID
 
     # ── Admin: show global system stats ────────────────────────
     if cid == ADMIN_ID:
@@ -1299,10 +1429,9 @@ def _send_profile_stats(cid: int) -> None:
         )
         return
 
-    # ── Regular user: show personal daily quota ─────────────────
+    # ── Regular user: show personal daily + monthly quota ────────
     row = db.get_user(cid)
     if row is None:
-        # Edge case: user not in DB yet (shouldn't happen after /start but be safe)
         db.add_user(cid, approved=db.is_approved(cid))
         row = db.get_user(cid)
 
@@ -1315,12 +1444,25 @@ def _send_profile_stats(cid: int) -> None:
                    if row and row['custom_quota_bytes'] is not None
                    else MAX_DAILY_BYTES)
 
-    used_gb = bytes_used  / (1024 ** 3)
-    max_gb  = max_bytes   / (1024 ** 3)
+    monthly_files_used = row['monthly_files_downloaded'] if row else 0
+    monthly_bytes_used = row['monthly_bytes_downloaded'] if row else 0
+    max_monthly_files  = (row['custom_quota_monthly_files']
+                          if row and row['custom_quota_monthly_files'] is not None
+                          else MAX_MONTHLY_FILES)
+    max_monthly_bytes  = (row['custom_quota_monthly_bytes']
+                          if row and row['custom_quota_monthly_bytes'] is not None
+                          else MAX_MONTHLY_BYTES)
+
+    used_gb          = bytes_used  / (1024 ** 3)
+    max_gb           = max_bytes   / (1024 ** 3)
+    monthly_used_gb  = monthly_bytes_used / (1024 ** 3)
+    monthly_max_gb   = max_monthly_bytes  / (1024 ** 3)
 
     bot.send_message(
         cid,
         t(cid, 'profile_stats',
           files=files_used, max_files=max_files,
-          used_gb=used_gb,  max_gb=max_gb),
+          used_gb=used_gb,  max_gb=max_gb,
+          monthly_files=monthly_files_used, max_monthly_files=max_monthly_files,
+          monthly_used_gb=monthly_used_gb, monthly_max_gb=monthly_max_gb),
     )

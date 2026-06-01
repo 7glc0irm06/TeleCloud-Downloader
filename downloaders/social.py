@@ -171,3 +171,166 @@ def ytdlp_universal(task):
             text = f"❌ {friendly_error(err, cid=cid)}"
             try: safe_tg_call(bot.edit_message_text, text, chat_id, msg.message_id)
             except Exception: safe_tg_call(bot.send_message, chat_id, text)
+
+
+def process_soundcloud_playlist(task):
+    """Download a SoundCloud playlist one track at a time.
+
+    Each track is downloaded, uploaded, and cleaned up before the next one
+    begins, so disk usage stays bounded to a single track at any moment.
+    """
+    from locales import t
+    import re
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    chat_id = task['chat_id']
+    cid     = chat_id
+    url     = task['url']
+    count   = task.get('count', 'all')
+    dest    = task.get('dest', 'tg')
+    audio_codec   = task.get('audio_format', 'mp3')
+    audio_quality = task.get('audio_quality', 'default')
+
+    # ── 1. Fetch playlist entries with extract_flat ───────────
+    cf = active_cookies_file(url, cid)
+    fetch_opts = {'extract_flat': True, 'quiet': True}
+    if cf:
+        fetch_opts['cookiefile'] = cf
+
+    msg = bot.send_message(chat_id, t(cid, 'sc_fetching_playlist'),
+                           reply_markup=_cancel_markup(cid))
+    task['_msg_id'] = msg.message_id
+
+    try:
+        with yt_dlp.YoutubeDL(fetch_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+        entries  = list(info.get('entries', []))
+        pl_title = info.get('title', 'SoundCloud Playlist')
+    except Exception as e:
+        logger.error("SoundCloud playlist fetch failed: %s", e, exc_info=True)
+        try:
+            safe_tg_call(bot.edit_message_text,
+                f"❌ {friendly_error(str(e), cid=cid)}", chat_id, msg.message_id)
+        except Exception:
+            pass
+        return
+
+    # ── 2. Slice to 'count' entries ──────────────────────────
+    if count != 'all':
+        entries = entries[:int(count)]
+    total = len(entries)
+
+    safe_title = re.sub(r'[\\/*?:"<>|]', '_', pl_title)[:40]
+    done   = 0
+    errors = 0
+
+    # ── 3. Download each track one at a time ─────────────────
+    for idx, entry in enumerate(entries, 1):
+        # Check cancellation before starting each track
+        if task['_stop'].is_set():
+            break
+
+        if not check_disk_space():
+            bot.send_message(chat_id, t(cid, 'disk_no_space', free=get_free_space()))
+            break
+
+        entry_url = entry.get('url') or entry.get('webpage_url', '')
+        if not entry_url:
+            errors += 1
+            done   += 1
+            continue
+
+        folder = os.path.join(DOWNLOAD_DIR, f"sc_{safe_title}_{idx}")
+        os.makedirs(folder, exist_ok=True)
+        task['_active_path'] = folder
+
+        # Build per-track yt-dlp options (audio only)
+        postprocessors = []
+        pp = {'key': 'FFmpegExtractAudio',
+              'preferredcodec': audio_codec if audio_codec != 'default' else 'mp3'}
+        if audio_quality != 'default':
+            pp['preferredquality'] = audio_quality
+        postprocessors.append(pp)
+
+        ydl_opts = {
+            'format':              'bestaudio/best',
+            'outtmpl':             os.path.join(folder, '%(title)s.%(ext)s'),
+            'quiet':               True,
+            'no_warnings':         True,
+            'windowsfilenames':    True,
+            'noplaylist':          True,
+            'postprocessors':      postprocessors,
+        }
+        if cf:
+            ydl_opts['cookiefile'] = cf
+
+        fp = None
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                dl_info    = ydl.extract_info(entry_url, download=True)
+                expected   = ydl.prepare_filename(dl_info)
+                base       = os.path.splitext(expected)[0]
+                candidates = glob.glob(base + '.*')
+                fp         = max(candidates, key=os.path.getmtime) if candidates else None
+
+            if fp and not task['_stop'].is_set():
+                # Byte quota accounting
+                if cid != ADMIN_ID:
+                    real_size = os.path.getsize(fp) if os.path.isfile(fp) else 0
+                    db.record_download_bytes(cid, real_size)
+
+                track_title = dl_info.get('title', os.path.basename(fp))
+                task_info = {
+                    'title':   track_title,
+                    'source':  'SoundCloud',
+                    'quality': '🎵 Audio',
+                    '_stop':   task.get('_stop'),
+                    'user_id': cid,
+                }
+                smart_dest(fp, msg, dest, folder_name=safe_title, task_info=task_info)
+                done += 1
+            else:
+                done += 1
+
+        except Exception as e:
+            logger.error(
+                "SoundCloud track %d/%d failed (url=%s): %s",
+                idx, total, entry_url, e, exc_info=True,
+            )
+            if fp:
+                cleanup_path(fp)
+            errors += 1
+            done   += 1
+            try:
+                safe_tg_call(bot.send_message, chat_id,
+                    t(cid, 'sc_playlist_track_error', n=idx, error=friendly_error(str(e), cid=cid)))
+            except Exception:
+                pass
+
+        # Always clean up the per-track folder
+        cleanup_path(folder)
+
+        # Update the progress message (throttled to only on the last track
+        # or when meaningful progress is made)
+        if done == total or done % 3 == 0:
+            try:
+                from utils import make_progress_bar
+                bar = make_progress_bar(done / total * 100)
+                safe_tg_call(
+                    bot.edit_message_text,
+                    f"📋 {pl_title}\n{bar} {done}/{total}\n"
+                    f"✅ {done - errors}  ❌ {errors}",
+                    chat_id, msg.message_id, reply_markup=_cancel_markup(cid))
+            except Exception:
+                pass
+
+    # ── 4. Final summary message ─────────────────────────────
+    try:
+        safe_tg_call(
+            bot.edit_message_text,
+            t(cid, 'sc_playlist_done', done=done - errors, total=total),
+            chat_id, msg.message_id)
+    except Exception:
+        pass

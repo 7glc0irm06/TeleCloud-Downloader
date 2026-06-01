@@ -1043,14 +1043,22 @@ STRINGS = {
     },
     'profile_stats': {
         'fa': (
-            "📊 آمار امروز شما:\n"
+            "📊 آمار شما:\n\n"
+            "📅 روزانه:\n"
             "📥 دانلودها: {files}/{max_files}\n"
-            "💾 حجم مصرفی: {used_gb:.2f}/{max_gb:.2f} GB"
+            "💾 حجم: {used_gb:.2f}/{max_gb:.2f} GB\n\n"
+            "📆 ماهانه:\n"
+            "📥 دانلودها: {monthly_files}/{max_monthly_files}\n"
+            "💾 حجم: {monthly_used_gb:.2f}/{monthly_max_gb:.2f} GB"
         ),
         'en': (
-            "📊 Your stats today:\n"
+            "📊 Your stats:\n\n"
+            "📅 Daily:\n"
             "📥 Downloads: {files}/{max_files}\n"
-            "💾 Data used: {used_gb:.2f}/{max_gb:.2f} GB"
+            "💾 Data used: {used_gb:.2f}/{max_gb:.2f} GB\n\n"
+            "📆 Monthly:\n"
+            "📥 Downloads: {monthly_files}/{max_monthly_files}\n"
+            "💾 Data used: {monthly_used_gb:.2f}/{monthly_max_gb:.2f} GB"
         ),
     },
 
@@ -1126,12 +1134,24 @@ STRINGS = {
         'en': "✅ User {user_id} disabled.",
     },
     'admin_setquota_usage': {
-        'fa': "❌ استفاده: /setquota <user_id> <files> <GB>",
-        'en': "❌ Usage: /setquota <user_id> <files> <GB>",
+        'fa': "❌ استفاده:\n/setquota <user_id> <files> <GB>\n/setquota <user_id> <files> <GB> <monthly_files> <monthly_GB>",
+        'en': "❌ Usage:\n/setquota <user_id> <files> <GB>\n/setquota <user_id> <files> <GB> <monthly_files> <monthly_GB>",
     },
     'admin_setquota_done': {
-        'fa': "✅ سهمیه کاربر {user_id} به‌روز شد:\n📥 فایل: {files}\n💾 حجم: {gb} GB",
-        'en': "✅ Quota for user {user_id} updated:\n📥 Files: {files}\n💾 Size: {gb} GB",
+        'fa': "✅ سهمیه روزانه کاربر {user_id} به‌روز شد:\n📥 فایل: {files}\n💾 حجم: {gb} GB",
+        'en': "✅ Daily quota for user {user_id} updated:\n📥 Files: {files}\n💾 Size: {gb} GB",
+    },
+    'admin_setquota_done_full': {
+        'fa': (
+            "✅ سهمیه کاربر {user_id} به‌روز شد:\n"
+            "📅 روزانه: {files} فایل / {gb} GB\n"
+            "📆 ماهانه: {m_files} فایل / {m_gb} GB"
+        ),
+        'en': (
+            "✅ Quota for user {user_id} updated:\n"
+            "📅 Daily: {files} files / {gb} GB\n"
+            "📆 Monthly: {m_files} files / {m_gb} GB"
+        ),
     },
     'admin_togglereg_done': {
         'fa': "✅ وضعیت ثبت‌نام عمومی: {status}",
@@ -1228,9 +1248,10 @@ STRINGS = {
             "وضعیت: {status}\n"
             "Username: {username}\n"
             "Name: {display_name}\n\n"
-            "📥 مصرف امروز: {files_today} فایل\n"
-            "💾 مصرف امروز: {used_gb:.2f} GB\n"
-            "🎯 سقف حجم: {quota_gb:.2f} GB\n\n"
+            "📅 مصرف روزانه:\n"
+            "📥 {files_today} فایل | 💾 {used_gb:.2f} / {quota_gb:.2f} GB\n\n"
+            "📆 مصرف ماهانه:\n"
+            "📥 {monthly_files_used}/{monthly_quota_files} فایل | 💾 {monthly_gb_used:.2f} / {monthly_quota_gb:.2f} GB\n\n"
             "📊 آمار دانلود فایل:\n"
             "امروز: {files_today_stats} | این هفته: {files_week} | این ماه: {files_month} | همه‌زمان: {files_all}\n"
             "📊 آمار حجم (GB):\n"
@@ -1242,9 +1263,10 @@ STRINGS = {
             "Status: {status}\n"
             "Username: {username}\n"
             "Name: {display_name}\n\n"
-            "📥 Used today: {files_today} files\n"
-            "💾 Used today: {used_gb:.2f} GB\n"
-            "🎯 Quota limit: {quota_gb:.2f} GB\n\n"
+            "📅 Daily usage:\n"
+            "📥 {files_today} files | 💾 {used_gb:.2f} / {quota_gb:.2f} GB\n\n"
+            "📆 Monthly usage:\n"
+            "📥 {monthly_files_used}/{monthly_quota_files} files | 💾 {monthly_gb_used:.2f} / {monthly_quota_gb:.2f} GB\n\n"
             "📊 File download stats:\n"
             "Today: {files_today_stats} | This week: {files_week} | This month: {files_month} | All time: {files_all}\n"
             "📊 Volume stats (GB):\n"
@@ -1296,8 +1318,20 @@ STRINGS = {
         'en': "✅ File usage updated.",
     },
     'admin_user_quota_updated_toast': {
-        'fa': "✅ سقف حجم به‌روزرسانی شد.",
-        'en': "✅ Quota updated.",
+        'fa': "✅ سقف حجم روزانه به‌روزرسانی شد.",
+        'en': "✅ Daily quota updated.",
+    },
+    'admin_user_monthly_quota_minus_btn': {
+        'fa': "➖ 1GB سقف ماهانه",
+        'en': "➖ 1GB Monthly",
+    },
+    'admin_user_monthly_quota_plus_btn': {
+        'fa': "➕ 1GB سقف ماهانه",
+        'en': "➕ 1GB Monthly",
+    },
+    'admin_user_monthly_quota_updated_toast': {
+        'fa': "✅ سقف حجم ماهانه به‌روزرسانی شد.",
+        'en': "✅ Monthly quota updated.",
     },
     'admin_user_enabled_toast': {
         'fa': "✅ کاربر فعال شد.",
@@ -1316,6 +1350,14 @@ STRINGS = {
     'quota_bytes_exceeded': {
         'fa': "❌ حجم دانلود روزانه شما تمام شده است.\n💾 مصرف: {used}/{max}\nفردا دوباره امتحان کنید.",
         'en': "❌ Your daily data limit has been reached.\n💾 Used: {used}/{max}\nTry again tomorrow.",
+    },
+    'quota_monthly_files_exceeded': {
+        'fa': "❌ سقف ماهانه فایل شما پر شده است.\n📥 دانلودها این ماه: {used}/{max}\nماه آینده دوباره امتحان کنید.",
+        'en': "❌ Your monthly file limit has been reached.\n📥 Downloads this month: {used}/{max}\nTry again next month.",
+    },
+    'quota_monthly_bytes_exceeded': {
+        'fa': "❌ حجم دانلود ماهانه شما تمام شده است.\n💾 مصرف این ماه: {used}/{max}\nماه آینده دوباره امتحان کنید.",
+        'en': "❌ Your monthly data limit has been reached.\n💾 Used this month: {used}/{max}\nTry again next month.",
     },
 
     # ── Corrected Colab instructions ──────────────────────────
@@ -1439,14 +1481,22 @@ STRINGS = {
     },
     'profile_stats': {
         'fa': (
-            "📊 آمار امروز شما:\n"
+            "📊 آمار شما:\n\n"
+            "📅 روزانه:\n"
             "📥 دانلودها: {files}/{max_files}\n"
-            "💾 حجم مصرفی: {used_gb:.2f}/{max_gb:.2f} GB"
+            "💾 حجم: {used_gb:.2f}/{max_gb:.2f} GB\n\n"
+            "📆 ماهانه:\n"
+            "📥 دانلودها: {monthly_files}/{max_monthly_files}\n"
+            "💾 حجم: {monthly_used_gb:.2f}/{monthly_max_gb:.2f} GB"
         ),
         'en': (
-            "📊 Your stats today:\n"
+            "📊 Your stats:\n\n"
+            "📅 Daily:\n"
             "📥 Downloads: {files}/{max_files}\n"
-            "💾 Data used: {used_gb:.2f}/{max_gb:.2f} GB"
+            "💾 Data used: {used_gb:.2f}/{max_gb:.2f} GB\n\n"
+            "📆 Monthly:\n"
+            "📥 Downloads: {monthly_files}/{max_monthly_files}\n"
+            "💾 Data used: {monthly_used_gb:.2f}/{monthly_max_gb:.2f} GB"
         ),
     },
     'admin_profile_stats': {
@@ -1466,6 +1516,48 @@ STRINGS = {
     'btn_gdrive_connected_system': {
         'fa': "✅ درایو: پیش‌فرض سیستم",
         'en': "✅ Drive: System Default",
+    },
+
+    # ── SoundCloud Playlist ────────────────────────────────────
+    'sc_fetching_playlist': {
+        'fa': "⏳ در حال دریافت پلیلیست SoundCloud...",
+        'en': "⏳ Fetching SoundCloud playlist...",
+    },
+    'sc_playlist_info': {
+        'fa': "🎵 {title}\n📀 {count} آهنگ",
+        'en': "🎵 {title}\n📀 {count} tracks",
+    },
+    'sc_playlist_audio_btn': {
+        'fa': "🎵 دانلود آهنگها",
+        'en': "🎵 Download Audio",
+    },
+    'sc_playlist_done': {
+        'fa': "✅ تمام شد — {done}/{total} آهنگ دانلود شد",
+        'en': "✅ Done — {done}/{total} tracks downloaded",
+    },
+    'sc_playlist_track_error': {
+        'fa': "⚠️ آهنگ {n} با خطا مواجه شد: {error}",
+        'en': "⚠️ Track {n} failed: {error}",
+    },
+    'sc_playlist_count_ask': {
+        'fa': "🎵 {title}\nچند آهنگ دانلود کنم?",
+        'en': "🎵 {title}\nHow many tracks to download?",
+    },
+    'sc_playlist_custom_ask': {
+        'fa': "تعداد آهنگ‌های مورد نظر را وارد کنید (عدد):",
+        'en': "Enter the number of tracks to download:",
+    },
+    'sc_playlist_queued': {
+        'fa': "✅ به صف افزوده شد.\n🎵 {count} آهنگ | {dest_icon}",
+        'en': "✅ Queued.\n🎵 {count} tracks | {dest_icon}",
+    },
+    'sc_playlist_dest_ask': {
+        'fa': "🎵 {count} آهنگ\nمقصد:",
+        'en': "🎵 {count} tracks\nDestination:",
+    },
+    'sc_playlist_fetch_error': {
+        'fa': "❌ خطا در دریافت اطلاعات پلیلیست: {error}",
+        'en': "❌ Failed to fetch playlist info: {error}",
     },
 }
 

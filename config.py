@@ -28,6 +28,10 @@ REGISTRATION_OPEN = os.environ.get('REGISTRATION_OPEN', 'false').lower() in ('1'
 MAX_DAILY_FILES = int(os.environ.get('MAX_DAILY_FILES', '20'))
 MAX_DAILY_BYTES = int(os.environ.get('MAX_DAILY_BYTES', str(5 * 1024 ** 3)))  # 5 GB
 
+# Global monthly quota defaults (overridable per-user in the DB).
+MAX_MONTHLY_FILES = int(os.environ.get('MAX_MONTHLY_FILES', '100'))
+MAX_MONTHLY_BYTES = int(os.environ.get('MAX_MONTHLY_BYTES', str(20 * 1024 ** 3)))  # 20 GB
+
 # Google Colab notebook URL shown to users during Drive onboarding.
 COLAB_URL = os.environ.get(
     'COLAB_URL',

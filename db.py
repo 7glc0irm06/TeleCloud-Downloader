@@ -30,6 +30,17 @@ def _ensure_users_columns(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE users ADD COLUMN username TEXT")
     if "display_name" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
+    # Monthly quota columns
+    if "monthly_files_downloaded" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN monthly_files_downloaded INTEGER NOT NULL DEFAULT 0")
+    if "monthly_bytes_downloaded" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN monthly_bytes_downloaded INTEGER NOT NULL DEFAULT 0")
+    if "last_active_month" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN last_active_month TEXT")
+    if "custom_quota_monthly_files" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN custom_quota_monthly_files INTEGER")
+    if "custom_quota_monthly_bytes" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN custom_quota_monthly_bytes INTEGER")
 
 
 def init_db() -> None:
@@ -226,6 +237,17 @@ def set_custom_quota(user_id: int, files: int | None, bytes_: int | None) -> Non
     conn.commit()
 
 
+def set_custom_quota_monthly(user_id: int, files: int | None, bytes_: int | None) -> None:
+    conn = _get_conn()
+    conn.execute(
+        "INSERT INTO users (user_id, custom_quota_monthly_files, custom_quota_monthly_bytes) VALUES (?, ?, ?) "
+        "ON CONFLICT(user_id) DO UPDATE SET custom_quota_monthly_files=excluded.custom_quota_monthly_files, "
+        "custom_quota_monthly_bytes=excluded.custom_quota_monthly_bytes",
+        (user_id, files, bytes_),
+    )
+    conn.commit()
+
+
 def get_effective_quota_bytes(user_id: int) -> int:
     from config import MAX_DAILY_BYTES
 
@@ -233,6 +255,37 @@ def get_effective_quota_bytes(user_id: int) -> int:
     if not row:
         return int(MAX_DAILY_BYTES)
     return int(row["custom_quota_bytes"]) if row["custom_quota_bytes"] is not None else int(MAX_DAILY_BYTES)
+
+
+def get_effective_monthly_quota_bytes(user_id: int) -> int:
+    from config import MAX_MONTHLY_BYTES
+
+    row = get_user(user_id)
+    if not row:
+        return int(MAX_MONTHLY_BYTES)
+    return int(row["custom_quota_monthly_bytes"]) if row["custom_quota_monthly_bytes"] is not None else int(MAX_MONTHLY_BYTES)
+
+
+def get_effective_monthly_quota_files(user_id: int) -> int:
+    from config import MAX_MONTHLY_FILES
+
+    row = get_user(user_id)
+    if not row:
+        return int(MAX_MONTHLY_FILES)
+    return int(row["custom_quota_monthly_files"]) if row["custom_quota_monthly_files"] is not None else int(MAX_MONTHLY_FILES)
+
+
+def adjust_user_monthly_quota_bytes(user_id: int, delta_bytes: int) -> int:
+    from config import MAX_MONTHLY_BYTES
+
+    conn = _get_conn()
+    conn.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
+    row = conn.execute("SELECT custom_quota_monthly_bytes FROM users WHERE user_id=?", (user_id,)).fetchone()
+    base = int(row["custom_quota_monthly_bytes"]) if row and row["custom_quota_monthly_bytes"] is not None else int(MAX_MONTHLY_BYTES)
+    new_bytes = max(0, base + int(delta_bytes))
+    conn.execute("UPDATE users SET custom_quota_monthly_bytes=? WHERE user_id=?", (new_bytes, user_id))
+    conn.commit()
+    return new_bytes
 
 
 def adjust_user_usage_count(user_id: int, delta: int) -> int:
@@ -283,9 +336,12 @@ def update_setting(user_id: int, key: str, value) -> None:
 # ---------------------------------------------------------------------
 
 def check_and_update_quota(user_id: int, file_size_bytes: int) -> tuple[bool, str]:
-    from config import MAX_DAILY_FILES, MAX_DAILY_BYTES
+    from config import MAX_DAILY_FILES, MAX_DAILY_BYTES, MAX_MONTHLY_FILES, MAX_MONTHLY_BYTES
+    from locales import t
+    from utils import fmt_size
 
     today_str = date.today().isoformat()
+    month_str = date.today().strftime("%Y-%m")
     conn = _get_conn()
 
     row = conn.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
@@ -294,6 +350,7 @@ def check_and_update_quota(user_id: int, file_size_bytes: int) -> tuple[bool, st
         conn.commit()
         row = conn.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
 
+    # ── Daily reset ──────────────────────────────────────────────
     last_date = row["last_active_date"] or ""
     if last_date != today_str:
         conn.execute(
@@ -303,6 +360,17 @@ def check_and_update_quota(user_id: int, file_size_bytes: int) -> tuple[bool, st
         conn.commit()
         row = conn.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
 
+    # ── Monthly reset ────────────────────────────────────────────
+    last_month = row["last_active_month"] or ""
+    if last_month != month_str:
+        conn.execute(
+            "UPDATE users SET monthly_files_downloaded=0, monthly_bytes_downloaded=0, last_active_month=? WHERE user_id=?",
+            (month_str, user_id),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM users WHERE user_id=?", (user_id,)).fetchone()
+
+    # ── Daily limits ─────────────────────────────────────────────
     max_files = row["custom_quota_files"] if row["custom_quota_files"] is not None else MAX_DAILY_FILES
     max_bytes = row["custom_quota_bytes"] if row["custom_quota_bytes"] is not None else MAX_DAILY_BYTES
 
@@ -310,25 +378,36 @@ def check_and_update_quota(user_id: int, file_size_bytes: int) -> tuple[bool, st
     bytes_used = row["bytes_downloaded"]
 
     if files_used >= max_files:
-        return False, (
-            f"? ??? ?????? ??? ?? ??? ???.\n"
-            f"?? ????????: {files_used}/{max_files}\n"
-            f"???? ?????? ?????? ????."
-        )
+        return False, t(user_id, 'quota_files_exceeded',
+                        used=files_used, max=max_files)
 
     if bytes_used + file_size_bytes > max_bytes:
-        from utils import fmt_size
+        return False, t(user_id, 'quota_bytes_exceeded',
+                        used=fmt_size(bytes_used), max=fmt_size(max_bytes))
 
-        return False, (
-            f"? ??? ?????? ?????? ??? ???? ??? ???.\n"
-            f"?? ????: {fmt_size(bytes_used)} / {fmt_size(max_bytes)}\n"
-            f"???? ?????? ?????? ????."
-        )
+    # ── Monthly limits ───────────────────────────────────────────
+    max_monthly_files = row["custom_quota_monthly_files"] if row["custom_quota_monthly_files"] is not None else MAX_MONTHLY_FILES
+    max_monthly_bytes = row["custom_quota_monthly_bytes"] if row["custom_quota_monthly_bytes"] is not None else MAX_MONTHLY_BYTES
 
+    monthly_files_used = row["monthly_files_downloaded"]
+    monthly_bytes_used = row["monthly_bytes_downloaded"]
+
+    if monthly_files_used >= max_monthly_files:
+        return False, t(user_id, 'quota_monthly_files_exceeded',
+                        used=monthly_files_used, max=max_monthly_files)
+
+    if monthly_bytes_used + file_size_bytes > max_monthly_bytes:
+        return False, t(user_id, 'quota_monthly_bytes_exceeded',
+                        used=fmt_size(monthly_bytes_used), max=fmt_size(max_monthly_bytes))
+
+    # ── All checks passed — increment daily + monthly counters ──
     conn.execute(
         "UPDATE users SET files_downloaded=files_downloaded+1, "
-        "bytes_downloaded=bytes_downloaded+?, last_active_date=? WHERE user_id=?",
-        (file_size_bytes, today_str, user_id),
+        "bytes_downloaded=bytes_downloaded+?, last_active_date=?, "
+        "monthly_files_downloaded=monthly_files_downloaded+1, "
+        "monthly_bytes_downloaded=monthly_bytes_downloaded+?, last_active_month=? "
+        "WHERE user_id=?",
+        (file_size_bytes, today_str, file_size_bytes, month_str, user_id),
     )
     conn.commit()
     return True, ""
@@ -354,8 +433,9 @@ def record_download_bytes(user_id: int, file_size_bytes: int) -> None:
         return
     conn = _get_conn()
     conn.execute(
-        "UPDATE users SET bytes_downloaded=bytes_downloaded+? WHERE user_id=?",
-        (file_size_bytes, user_id),
+        "UPDATE users SET bytes_downloaded=bytes_downloaded+?, "
+        "monthly_bytes_downloaded=monthly_bytes_downloaded+? WHERE user_id=?",
+        (file_size_bytes, file_size_bytes, user_id),
     )
     conn.commit()
     record_download_event(user_id, file_size_bytes)

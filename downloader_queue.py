@@ -245,6 +245,9 @@ def _dispatch(task: dict) -> None:
     elif t_type == 'social':
         from downloaders.social import ytdlp_universal
         ytdlp_universal(task)
+    elif t_type == 'soundcloud_playlist':
+        from downloaders.social import process_soundcloud_playlist
+        process_soundcloud_playlist(task)
     else:
         cid = task.get('chat_id')
         from locales import t as _t

@@ -472,6 +472,23 @@ def callback_query(call):
             pass
         return
 
+    # ── SoundCloud playlist callbacks ────────────────────────────
+    if data.startswith("scpl_info|"):
+        _handle_scpl_info(call, cid, data)
+        return
+
+    if data.startswith("scpl_count|"):
+        _handle_scpl_count(call, cid, data)
+        return
+
+    if data.startswith("scpl_custom|"):
+        _handle_scpl_custom(call, cid, data)
+        return
+
+    if data.startswith("scpl_dest|"):
+        _handle_scpl_dest(call, cid, data)
+        return
+
     # ── Cookie management ─────────────────────────────────────
     if data.startswith("ck|"):
         _handle_cookie_callback(call, cid, data)
@@ -783,6 +800,148 @@ def _handle_yt_dest(call, cid, data):
 
 
 # =============================================================
+# SoundCloud playlist callback handlers
+# =============================================================
+def _handle_scpl_info(call, cid, data):
+    """User tapped '🎵 Download Audio' — show count selection menu."""
+    _, mid_s = data.split('|', 1)
+    mid = int(mid_s)
+    with cache_lock:
+        url = url_cache.get(mid)
+    if not url:
+        bot.answer_callback_query(call.id, t(cid, 'link_expired_toast'), show_alert=True)
+        return
+
+    # Re-fetch the title for display in the count menu
+    title = 'SoundCloud Playlist'
+    try:
+        import yt_dlp
+        with yt_dlp.YoutubeDL({'extract_flat': True, 'quiet': True}) as ydl:
+            info = ydl.extract_info(url, download=False)
+            title = info.get('title', title)
+    except Exception:
+        pass
+
+    mk = types.InlineKeyboardMarkup(row_width=3)
+    mk.add(
+        types.InlineKeyboardButton(t(cid, 'playlist_all_btn'),
+            callback_data=f"scpl_count|{mid}|all"),
+        types.InlineKeyboardButton("5",
+            callback_data=f"scpl_count|{mid}|5"),
+        types.InlineKeyboardButton("10",
+            callback_data=f"scpl_count|{mid}|10"),
+        types.InlineKeyboardButton("20",
+            callback_data=f"scpl_count|{mid}|20"),
+    )
+    mk.add(types.InlineKeyboardButton(
+        t(cid, 'playlist_custom_btn'),
+        callback_data=f"scpl_custom|{mid}"))
+
+    try:
+        bot.edit_message_text(
+            t(cid, 'sc_playlist_count_ask', title=title),
+            cid, call.message.message_id, reply_markup=mk)
+    except Exception:
+        pass
+    bot.answer_callback_query(call.id)
+
+
+def _handle_scpl_custom(call, cid, data):
+    """Ask user to type a custom number of tracks."""
+    _, mid_s = data.split('|', 1)
+    mid = int(mid_s)
+    user_state[cid] = f'await_scpl_count|{mid}'
+    bot.answer_callback_query(call.id)
+    bot.send_message(cid, t(cid, 'sc_playlist_custom_ask'))
+
+
+def _handle_scpl_count(call, cid, data):
+    """User selected track count — show destination selection."""
+    parts = data.split('|')
+    mid   = int(parts[1])
+    count = parts[2]  # 'all' or a number string
+
+    with cache_lock:
+        url = url_cache.get(mid)
+    if not url:
+        bot.answer_callback_query(call.id, t(cid, 'link_expired_toast'), show_alert=True)
+        return
+
+    from dest_helpers import should_ask_dest, get_dest
+    if not should_ask_dest(cid):
+        dest = get_dest(cid)
+        enqueue({
+            'type': 'soundcloud_playlist',
+            'chat_id': cid,
+            'url': url,
+            'count': int(count) if count != 'all' else 'all',
+            'dest': dest,
+            'audio_only': True,
+            'format': 'bestaudio/best',
+        })
+        bot.answer_callback_query(call.id)
+        count_display = t(cid, 'playlist_all_btn') if count == 'all' else count
+        try:
+            bot.edit_message_text(
+                t(cid, 'sc_playlist_queued',
+                  count=count_display,
+                  dest_icon='📱' if dest == 'tg' else '☁️'),
+                cid, call.message.message_id)
+        except Exception:
+            pass
+    else:
+        dest_mk = types.InlineKeyboardMarkup()
+        dest_mk.row(
+            types.InlineKeyboardButton(t(cid, 'btn_tg'),
+                callback_data=f"scpl_dest|{mid}|{count}|tg"),
+            types.InlineKeyboardButton(t(cid, 'btn_gd'),
+                callback_data=f"scpl_dest|{mid}|{count}|gd"),
+        )
+        count_display = t(cid, 'playlist_all_btn') if count == 'all' else count
+        try:
+            bot.edit_message_text(
+                t(cid, 'sc_playlist_dest_ask', count=count_display),
+                cid, call.message.message_id, reply_markup=dest_mk)
+        except Exception:
+            pass
+        bot.answer_callback_query(call.id)
+
+
+def _handle_scpl_dest(call, cid, data):
+    """User selected destination — enqueue the SoundCloud playlist task."""
+    parts = data.split('|')
+    mid   = int(parts[1])
+    count = parts[2]  # 'all' or a number string
+    dest  = parts[3]
+
+    with cache_lock:
+        url = url_cache.get(mid)
+    if not url:
+        bot.answer_callback_query(call.id, t(cid, 'link_expired_toast'), show_alert=True)
+        return
+
+    enqueue({
+        'type': 'soundcloud_playlist',
+        'chat_id': cid,
+        'url': url,
+        'count': int(count) if count != 'all' else 'all',
+        'dest': dest,
+        'audio_only': True,
+        'format': 'bestaudio/best',
+    })
+    bot.answer_callback_query(call.id)
+    count_display = t(cid, 'playlist_all_btn') if count == 'all' else count
+    try:
+        bot.edit_message_text(
+            t(cid, 'sc_playlist_queued',
+              count=count_display,
+              dest_icon='📱' if dest == 'tg' else '☁️'),
+            cid, call.message.message_id)
+    except Exception:
+        pass
+
+
+# =============================================================
 # Admin user management panel
 # =============================================================
 def _aum_make_ctx(cid: int, page: int, query: str | None) -> str:
@@ -943,6 +1102,13 @@ def render_admin_user_detail(
     gb_today = bytes_today / (1024 ** 3)
     quota_gb = quota_bytes / (1024 ** 3)
 
+    monthly_files_used = int(row["monthly_files_downloaded"] or 0)
+    monthly_bytes_used = int(row["monthly_bytes_downloaded"] or 0)
+    monthly_quota_bytes = db.get_effective_monthly_quota_bytes(user_id)
+    monthly_quota_files = db.get_effective_monthly_quota_files(user_id)
+    monthly_gb_used = monthly_bytes_used / (1024 ** 3)
+    monthly_quota_gb = monthly_quota_bytes / (1024 ** 3)
+
     text = t(
         chat_id,
         'admin_user_detail',
@@ -953,6 +1119,10 @@ def render_admin_user_detail(
         files_today=files_today,
         used_gb=gb_today,
         quota_gb=quota_gb,
+        monthly_files_used=monthly_files_used,
+        monthly_quota_files=monthly_quota_files,
+        monthly_gb_used=monthly_gb_used,
+        monthly_quota_gb=monthly_quota_gb,
         files_today_stats=stats["files_today"],
         files_week=stats["files_week"],
         files_month=stats["files_month"],
@@ -973,6 +1143,10 @@ def render_admin_user_detail(
     markup.row(
         types.InlineKeyboardButton(t(chat_id, 'admin_user_quota_minus_btn'), callback_data=f"aum|qb|{user_id}|-1|{ctx_token}"),
         types.InlineKeyboardButton(t(chat_id, 'admin_user_quota_plus_btn'), callback_data=f"aum|qb|{user_id}|1|{ctx_token}"),
+    )
+    markup.row(
+        types.InlineKeyboardButton(t(chat_id, 'admin_user_monthly_quota_minus_btn'), callback_data=f"aum|qm|{user_id}|-1|{ctx_token}"),
+        types.InlineKeyboardButton(t(chat_id, 'admin_user_monthly_quota_plus_btn'), callback_data=f"aum|qm|{user_id}|1|{ctx_token}"),
     )
     if confirm_disable:
         markup.row(
@@ -1076,6 +1250,24 @@ def _handle_admin_user_panel(call, cid: int, data: str) -> None:
                 message_id=call.message.message_id,
             )
             bot.answer_callback_query(call.id, t(cid, 'admin_user_quota_updated_toast'))
+            return
+
+        if action == "qm" and len(parts) >= 5:
+            user_id = int(parts[2])
+            step = int(parts[3])
+            token = parts[4]
+            if user_id == ADMIN_ID:
+                bot.answer_callback_query(call.id, t(cid, 'admin_user_self_blocked'), show_alert=True)
+                return
+            delta_bytes = step * int(1 * (1024 ** 3))  # 1 GB per click for monthly
+            db.adjust_user_monthly_quota_bytes(user_id, delta_bytes)
+            render_admin_user_detail(
+                chat_id=cid,
+                user_id=user_id,
+                ctx_token=token,
+                message_id=call.message.message_id,
+            )
+            bot.answer_callback_query(call.id, t(cid, 'admin_user_monthly_quota_updated_toast'))
             return
 
         if action == "en" and len(parts) >= 4:
