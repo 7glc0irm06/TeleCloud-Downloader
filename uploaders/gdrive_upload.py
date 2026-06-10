@@ -3,6 +3,7 @@ import re
 import subprocess
 import time
 import html
+from collections import deque
 from pathlib import Path
 
 from config import bot, stop_event, DRIVE_FOLDER_ID, USER_CONFIGS_DIR
@@ -104,6 +105,16 @@ def _cancel_markup(cid=None):
     m.add(types.InlineKeyboardButton(label, callback_data="cancel_task"))
     return m
 
+
+def _remember_rclone_output(output_tail, line: str):
+    """Keep a compact, log-safe tail of rclone output for failures."""
+    if not line:
+        return
+    for part in re.split(r'[\r\n]+', line):
+        part = part.strip()
+        if part:
+            output_tail.append(part[:500])
+
 def parse_rclone_speed(s):
     if not s: return 0
     s = s.upper()
@@ -189,9 +200,10 @@ def upload_to_gdrive_cancellable(
         pass
 
     cmd = [
-        "rclone", "move", path, drive_dest,
+        "rclone", "copy", path, drive_dest,
         "--progress",
     ] + root_folder_args + config_args
+    output_tail = deque(maxlen=80)
 
     # ── Thread-safe: proc is stack-local; no global state is touched ────────
     # Each concurrent invocation of this function owns its own Popen object.
@@ -229,6 +241,8 @@ def upload_to_gdrive_cancellable(
         # ───────────────────────────────────────────────────────────────────
 
         line = proc.stdout.readline()
+        if line:
+            _remember_rclone_output(output_tail, line)
         if not line and proc.poll() is not None:
             break
 
@@ -257,11 +271,11 @@ def upload_to_gdrive_cancellable(
                 last_update = time.time()
 
     ret = proc.wait()
-    cleanup_path(path)
 
     name = os.path.basename(path)
 
     if ret == 0:
+        cleanup_path(path)
         try:
             bot.edit_message_text(
                 t(cid, 'getting_gdrive_link'),
@@ -317,11 +331,24 @@ def upload_to_gdrive_cancellable(
             except Exception:
                 pass
     else:
+        details = "\n".join(list(output_tail)[-12:])
+        print(
+            f"[gdrive_upload] rclone copy failed ret={ret} "
+            f"path={path!r} dest={drive_dest!r}\n{details}",
+            flush=True,
+        )
+        err_text = t(cid, 'gdrive_upload_error')
+        if details:
+            err_text += "\n\n<code>" + html.escape(details[-1500:]) + "</code>"
         try:
             bot.edit_message_text(
-                t(cid, 'gdrive_upload_error'), chat_id, status_msg.message_id)
+                err_text, chat_id, status_msg.message_id, parse_mode='HTML')
         except Exception:
-            pass
+            try:
+                bot.edit_message_text(
+                    t(cid, 'gdrive_upload_error'), chat_id, status_msg.message_id)
+            except Exception:
+                pass
 
 def upload_file_to_gdrive_folder(
     file_path: str,

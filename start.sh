@@ -303,7 +303,7 @@ services:
       - ./downloads:/root/downloads
       - ./cookies:/root/cookies
       - ./cookies_enabled.json:/root/cookies_enabled.json
-      - ./rclone.conf:/root/.config/rclone/rclone.conf
+      - ./rclone:/root/.config/rclone
       - ./user_configs:/app/user_configs
       - .:/app
       - ./telegram-bot-api-data:/var/lib/telegram-bot-api:ro
@@ -324,7 +324,7 @@ services:
       - ./downloads:/root/downloads
       - ./cookies:/root/cookies
       - ./cookies_enabled.json:/root/cookies_enabled.json
-      - ./rclone.conf:/root/.config/rclone/rclone.conf
+      - ./rclone:/root/.config/rclone
       - ./user_configs:/app/user_configs
       - .:/app
 EOF

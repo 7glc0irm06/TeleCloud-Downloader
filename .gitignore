@@ -20,3 +20,4 @@ rclone.conf
 user_configs/
 telegram-bot-api-data/
 .start.compose.yml
+rclone/
