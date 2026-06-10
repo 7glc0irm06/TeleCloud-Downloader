@@ -1,6 +1,5 @@
 import os
 import re
-import glob
 import time
 import subprocess
 
@@ -103,15 +102,12 @@ def _do_torrent_download(task, msg):
     dest    = task.get('dest') or ('tg' if chat_id in tg_upload_mode else 'gd')
     TIMEOUT = 20 * 60
     task['_active_path'] = None
-
-    for old in glob.glob(os.path.join(DOWNLOAD_DIR, "*.aria2")):
-        try:
-            os.remove(old)
-        except Exception:
-            pass
+    session_dir = os.path.join(DOWNLOAD_DIR, f".torrent_{chat_id}_{int(time.time())}_{os.getpid()}")
+    os.makedirs(session_dir, exist_ok=True)
+    task['_active_path'] = session_dir
 
     cmd = [
-        "aria2c", "--dir", DOWNLOAD_DIR, "--seed-time=0",
+        "aria2c", "--dir", session_dir, "--seed-time=0",
         "--console-log-level=notice", "--summary-interval=5",
         "--bt-enable-lpd=true", "--enable-dht=true",
         "--enable-dht6=false", "--disable-ipv6=true",
@@ -217,15 +213,18 @@ def _do_torrent_download(task, msg):
             raise Exception("aria2c error:\n" + "\n".join((relevant or output_lines)[-8:]))
 
         entries = sorted(
-            [os.path.join(DOWNLOAD_DIR, e) for e in os.listdir(DOWNLOAD_DIR)
+            [os.path.join(session_dir, e) for e in os.listdir(session_dir)
              if not e.endswith('.aria2')],
             key=os.path.getmtime, reverse=True)
         if not entries:
             raise Exception(t(cid, 'torrent_file_not_found'))
 
-        newest    = entries[0]
+        newest = entries[0] if len(entries) == 1 else session_dir
         task['_active_path'] = newest
-        base_name = os.path.splitext(os.path.basename(newest))[0][:40]
+        display_name = os.path.basename(newest.rstrip(os.sep)) or 'Torrent'
+        if newest == session_dir and len(entries) > 1:
+            display_name = 'Torrent'
+        base_name = os.path.splitext(display_name)[0][:40]
         is_folder = os.path.isdir(newest)
 
         if cid != ADMIN_ID:
@@ -264,6 +263,12 @@ def _do_torrent_download(task, msg):
             )
         else:
             smart_dest(newest, msg, dest, folder_name=base_name, task_info=task_info)
+
+        try:
+            if os.path.isdir(session_dir) and not os.listdir(session_dir):
+                cleanup_path(session_dir)
+        except Exception:
+            pass
 
     except Exception as e:
         err = str(e)

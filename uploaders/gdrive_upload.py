@@ -113,7 +113,7 @@ def _remember_rclone_output(output_tail, line: str):
     for part in re.split(r'[\r\n]+', line):
         part = part.strip()
         if part:
-            output_tail.append(part[:500])
+            output_tail.append(part[:2000])
 
 def parse_rclone_speed(s):
     if not s: return 0
@@ -202,6 +202,13 @@ def upload_to_gdrive_cancellable(
     cmd = [
         "rclone", "copy", path, drive_dest,
         "--progress",
+        "--disable-http2",
+        "--drive-chunk-size", "16M",
+        "--retries", "8",
+        "--low-level-retries", "30",
+        "--retries-sleep", "10s",
+        "--contimeout", "1m",
+        "--timeout", "10m",
     ] + root_folder_args + config_args
     output_tail = deque(maxlen=80)
 
@@ -339,7 +346,7 @@ def upload_to_gdrive_cancellable(
         )
         err_text = t(cid, 'gdrive_upload_error')
         if details:
-            err_text += "\n\n<code>" + html.escape(details[-1500:]) + "</code>"
+            err_text += "\n\n<code>" + html.escape(details[-3500:]) + "</code>"
         try:
             bot.edit_message_text(
                 err_text, chat_id, status_msg.message_id, parse_mode='HTML')
