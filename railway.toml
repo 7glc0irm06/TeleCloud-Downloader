@@ -19,10 +19,6 @@ restartPolicyMaxRetries = 10
   source = "postgres"
 
 [[services]]
-  name = "redis"
-  source = "redis"
-
-[[services]]
   name = "bucket"
   source = "bucket"
 
