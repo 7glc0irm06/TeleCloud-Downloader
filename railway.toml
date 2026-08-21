@@ -10,6 +10,23 @@ restartPolicyMaxRetries = 10
 [[services]]
   name = "telecloud"
 
-  [services.volumes]
-    "/var/lib/telegram-bot-api" = "/var/lib/telegram-bot-api"
-    "/root/downloads" = "/root/downloads"
+  [services.variables]
+    # Postgres / Redis / Bucket env vars are injected automatically by Railway
+    # when those plugins are linked to this service.
+
+[[services]]
+  name = "postgres"
+  source = "postgres"
+
+[[services]]
+  name = "redis"
+  source = "redis"
+
+[[services]]
+  name = "bucket"
+  source = "bucket"
+
+[services.volumes]
+  "/var/lib/telegram-bot-api" = "/var/lib/telegram-bot-api"
+  "/root/downloads" = "/root/downloads"
+  "/root/storage" = "/root/storage"

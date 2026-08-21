@@ -9,7 +9,7 @@ ENV PYTHONUNBUFFERED=1
 # system deps + ffmpeg + aria2 + rclone + node (for yt-dlp js runtime)
 # libstdc++ is required by the telegram-bot-api binary
 RUN apk add --no-cache \
-    ffmpeg aria2 curl unzip nodejs libstdc++ ca-certificates git
+    ffmpeg aria2 curl unzip nodejs libstdc++ ca-certificates git postgresql-dev gcc musl-dev
 
 # rclone
 RUN curl -fsSL https://downloads.rclone.org/rclone-current-linux-amd64.zip -o /tmp/rclone.zip \

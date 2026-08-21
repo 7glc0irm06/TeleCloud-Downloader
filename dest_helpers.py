@@ -76,12 +76,17 @@ _SUBTITLE_LOCALE = {
 # =============================================================
 
 def get_dest(cid) -> str:
-    """Return the user's default upload destination."""
-    if cid in config.tg_upload_mode:
+    """Return the user's default upload destination (persisted in Postgres)."""
+    import db
+    try:
+        return db.get_upload_dest(cid)
+    except Exception:
+        # fallback to in-memory sets if DB unavailable
+        if cid in config.tg_upload_mode:
+            return 'tg'
+        if cid in config.gd_upload_mode:
+            return 'gd'
         return 'tg'
-    if cid in config.gd_upload_mode:
-        return 'gd'
-    return 'tg'
 
 
 def should_ask_dest(cid) -> bool:

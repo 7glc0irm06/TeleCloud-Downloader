@@ -172,19 +172,18 @@ def callback_query(call):
             toast = t(cid, 'mode_set_toast')
 
         elif action == "upload":
-            if cid in config.tg_upload_mode:
-                # TG → GD
-                config.tg_upload_mode.discard(cid)
-                config.gd_upload_mode.add(cid)
-                toast = t(cid, 'dest_gdrive_toast')
-            elif cid in config.gd_upload_mode:
-                # GD → Ask (remove from both sets)
-                config.gd_upload_mode.discard(cid)
-                toast = t(cid, 'upload_ask_toast')
+            import db
+            current = db.get_upload_dest(cid)
+            # cycle: tg → s3 → github → tg
+            if current == 'tg':
+                db.set_upload_dest(cid, 's3')
+                toast = 'مقصد آپلود: Railway S3'
+            elif current == 's3':
+                db.set_upload_dest(cid, 'github')
+                toast = 'مقصد آپلود: GitHub شخصی'
             else:
-                # Ask → TG
-                config.tg_upload_mode.add(cid)
-                toast = t(cid, 'dest_tg_toast')
+                db.set_upload_dest(cid, 'tg')
+                toast = 'مقصد آپلود: تلگرام'
 
         elif action == "qual":
             # Context-aware: audio mode → audio quality, video mode → video quality

@@ -15,6 +15,30 @@ USER_LANGS_FILE = '/app/user_configs/user_langs.json'
 USER_CONFIGS_DIR = '/app/user_configs'
 
 # =============================================================
+# PostgreSQL (user storage — replaces local SQLite to save disk)
+# =============================================================
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
+# =============================================================
+# GitHub per-user upload (each user sets their own token)
+# =============================================================
+GITHUB_DEFAULT_REPO = os.environ.get('GITHUB_DEFAULT_REPO', '')  # owner/repo fallback
+
+# =============================================================
+# AWS S3 / Railway Bucket (injected automatically by Railway)
+# =============================================================
+AWS_ENDPOINT_URL   = os.environ.get('AWS_ENDPOINT_URL')
+AWS_ACCESS_KEY_ID  = os.environ.get('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
+AWS_DEFAULT_REGION = os.environ.get('AWS_DEFAULT_REGION', 'auto')
+AWS_BUCKET_NAME    = os.environ.get('AWS_BUCKET_NAME')
+RAILWAY_PUBLIC_DOMAIN = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '')
+
+# Local file storage for S3 fallback / Railway Volume
+UPLOAD_VOLUME = '/root/storage'
+os.makedirs(UPLOAD_VOLUME, exist_ok=True)
+
+# =============================================================
 # Multi-tenant admin & registration settings
 # =============================================================
 # The single Telegram user_id that has full admin privileges.

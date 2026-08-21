@@ -330,6 +330,27 @@ def cmd_togglereg(message):
 
 
 # =============================================================
+# Per-user GitHub upload config: /setgithub <TOKEN> <owner/repo>
+# =============================================================
+@bot.message_handler(commands=['setgithub'])
+def cmd_setgithub(message):
+    cid = message.chat.id
+    parts = message.text.split()
+    if len(parts) < 3:
+        bot.reply_to(message,
+                     "استفاده:\n/setgithub <TOKEN> <owner/repo>\nمثال:\n/setgithub ghp_xxx amirh00sain/myuploads")
+        return
+    token = parts[1].strip()
+    repo = parts[2].strip()
+    if '/' not in repo:
+        bot.reply_to(message, "ریپو باید به فرم owner/repo باشه")
+        return
+    db.set_github_token(cid, token)
+    db.set_github_repo(cid, repo)
+    bot.reply_to(message, f"توکن GitHub و ریپو ست شد:\n repo: {repo}\nحالا مقصد رو روی GitHub بذار (تنظیمات → Upload)")
+
+
+# =============================================================
 # Admin command: /broadcast <message>
 # =============================================================
 @bot.message_handler(commands=['broadcast'])
