@@ -99,7 +99,7 @@ def _do_torrent_download(task, msg):
     from config import tg_upload_mode
     chat_id = task['chat_id']
     cid     = chat_id
-    dest    = task.get('dest') or ('tg' if chat_id in tg_upload_mode else 'gd')
+    dest    = task.get('dest') or 'tg'
     TIMEOUT = 20 * 60
     task['_active_path'] = None
     session_dir = os.path.join(DOWNLOAD_DIR, f".torrent_{chat_id}_{int(time.time())}_{os.getpid()}")

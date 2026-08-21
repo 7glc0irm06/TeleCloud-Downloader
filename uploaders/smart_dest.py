@@ -20,11 +20,11 @@ def smart_dest(file_path: str, status_msg, dest: str = None, folder_name: str = 
         task_info = {}
 
     if dest is None:
-        dest = 'tg' if chat_id in tg_upload_mode else 'gd'
+        dest = 'tg'
 
     size = get_file_size(file_path)
 
-    # Prevent sending a new message for large files destined for Telegram
+    # Local Bot API allows up to 2GB; if a single file is larger, notify and skip gdrive.
     if size > 2000 * 1024 * 1024 and dest == 'tg':
         try:
             bot.edit_message_text(
@@ -33,15 +33,10 @@ def smart_dest(file_path: str, status_msg, dest: str = None, folder_name: str = 
             )
         except Exception:
             pass
-        dest = 'gd'
+        return
 
     if dest == 'tg':
         upload_file_to_telegram(file_path, status_msg, task_info)
     else:
-        user_id = task_info.get('user_id')
-        upload_to_gdrive_cancellable(
-            file_path, status_msg,
-            folder_name=folder_name,
-            task_info=task_info,
-            user_id=user_id,
-        )
+        # gdrive path disabled: fall back to telegram
+        upload_file_to_telegram(file_path, status_msg, task_info)

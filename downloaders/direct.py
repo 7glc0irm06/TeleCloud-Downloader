@@ -53,7 +53,7 @@ def process_direct_download(task):
     from config import tg_upload_mode
     chat_id = task['chat_id']
     cid     = chat_id
-    dest    = task.get('dest') or ('tg' if chat_id in tg_upload_mode else 'gd')
+    dest    = task.get('dest') or 'tg'
 
     if not check_disk_space():
         bot.send_message(chat_id, t(cid, 'disk_no_space', free=get_free_space()))

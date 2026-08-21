@@ -81,7 +81,7 @@ def get_dest(cid) -> str:
         return 'tg'
     if cid in config.gd_upload_mode:
         return 'gd'
-    return None
+    return 'tg'
 
 
 def should_ask_dest(cid) -> bool:
