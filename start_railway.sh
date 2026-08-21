@@ -7,7 +7,11 @@ set -e
 API_ID="${TELEGRAM_API_ID:-0}"
 API_HASH="${TELEGRAM_API_HASH:-00000000000000000000000000000000}"
 
-mkdir -p /var/lib/telegram-bot-api /root/downloads
+mkdir -p /var/lib/telegram-bot-api /root/downloads /root/.config/rclone
+# empty rclone config so gdrive init doesn't crash when Drive is unused
+if [ ! -f /root/.config/rclone/rclone.conf ]; then
+  printf '[gdrive]\ntype = drive\n' > /root/.config/rclone/rclone.conf
+fi
 
 echo "[railway] starting telegram-bot-api on 0.0.0.0:8081 (local mode)"
 /usr/local/bin/telegram-bot-api \
