@@ -10,7 +10,7 @@ API_HASH="${TELEGRAM_API_HASH:-00000000000000000000000000000000}"
 mkdir -p /var/lib/telegram-bot-api /root/downloads
 
 echo "[railway] starting telegram-bot-api on 0.0.0.0:8081 (local mode)"
-telegram-bot-api \
+/usr/local/bin/telegram-bot-api \
   --local \
   --api-id "$API_ID" \
   --api-hash "$API_HASH" \

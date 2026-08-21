@@ -19,7 +19,7 @@ RUN curl -fsSL https://downloads.rclone.org/rclone-current-linux-amd64.zip -o /t
     && chmod +x /usr/bin/rclone && rm -rf /tmp/rclone*
 
 # copy telegram-bot-api binary from stage 1
-COPY --from=api /usr/bin/telegram-bot-api /usr/bin/telegram-bot-api
+COPY --from=api /usr/local/bin/telegram-bot-api /usr/local/bin/telegram-bot-api
 
 WORKDIR /app
 
