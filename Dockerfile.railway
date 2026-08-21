@@ -1,0 +1,38 @@
+# ── Stage 1: extract telegram-bot-api binary from official image ──
+FROM aiogram/telegram-bot-api:10.2-linuxamd64 AS api
+
+# ── Stage 2: bot runtime ──
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+# system deps + ffmpeg + aria2 + rclone + node (for yt-dlp js runtime)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg aria2 curl unzip nodejs ca-certificates git \
+    && rm -rf /var/lib/apt/lists/*
+
+# rclone
+RUN curl -fsSL https://downloads.rclone.org/rclone-current-linux-amd64.zip -o /tmp/rclone.zip \
+    && cd /tmp && unzip -o rclone.zip >/dev/null \
+    && cp rclone-*-linux-amd64/rclone /usr/bin/rclone \
+    && chmod +x /usr/bin/rclone && rm -rf /tmp/rclone*
+
+# copy telegram-bot-api binary from stage 1
+COPY --from=api /usr/bin/telegram-bot-api /usr/bin/telegram-bot-api
+
+WORKDIR /app
+
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+COPY . /app
+
+# yt-dlp node js runtime
+RUN mkdir -p /root/.config/yt-dlp && echo '--js-runtimes node' > /root/.config/yt-dlp/config
+
+# volumes: persistent data
+VOLUME ["/var/lib/telegram-bot-api", "/root/downloads"]
+
+EXPOSE 8081
+CMD ["sh", "/app/start_railway.sh"]
