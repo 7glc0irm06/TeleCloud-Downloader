@@ -1,16 +1,15 @@
-# ── Stage 1: extract telegram-bot-api binary from official image ──
+# ── Stage 1: extract telegram-bot-api binary (Alpine/musl) ──
 FROM aiogram/telegram-bot-api:10.2-linuxamd64 AS api
 
-# ── Stage 2: bot runtime ──
-FROM python:3.11-slim
+# ── Stage 2: bot runtime (Alpine/musl — matches stage 1 libc) ──
+FROM python:3.11-alpine
 
-ENV PYTHONUNBUFFERED=1 \
-    DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
 
 # system deps + ffmpeg + aria2 + rclone + node (for yt-dlp js runtime)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg aria2 curl unzip nodejs ca-certificates git \
-    && rm -rf /var/lib/apt/lists/*
+# libstdc++ is required by the telegram-bot-api binary
+RUN apk add --no-cache \
+    ffmpeg aria2 curl unzip nodejs libstdc++ ca-certificates git
 
 # rclone
 RUN curl -fsSL https://downloads.rclone.org/rclone-current-linux-amd64.zip -o /tmp/rclone.zip \
@@ -18,7 +17,7 @@ RUN curl -fsSL https://downloads.rclone.org/rclone-current-linux-amd64.zip -o /t
     && cp rclone-*-linux-amd64/rclone /usr/bin/rclone \
     && chmod +x /usr/bin/rclone && rm -rf /tmp/rclone*
 
-# copy telegram-bot-api binary from stage 1
+# copy telegram-bot-api binary from stage 1 (musl → musl, compatible)
 COPY --from=api /usr/local/bin/telegram-bot-api /usr/local/bin/telegram-bot-api
 
 WORKDIR /app
