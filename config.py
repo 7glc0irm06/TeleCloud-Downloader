@@ -26,12 +26,17 @@ GITHUB_DEFAULT_REPO = os.environ.get('GITHUB_DEFAULT_REPO', '')  # owner/repo fa
 
 # =============================================================
 # AWS S3 / Railway Bucket (injected automatically by Railway)
+# Railway uses bare names (ACCESS_KEY_ID, BUCKET, ENDPOINT);
+# we also accept AWS_-prefixed names for portability.
 # =============================================================
-AWS_ENDPOINT_URL   = os.environ.get('AWS_ENDPOINT_URL')
-AWS_ACCESS_KEY_ID  = os.environ.get('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
-AWS_DEFAULT_REGION = os.environ.get('AWS_DEFAULT_REGION', 'auto')
-AWS_BUCKET_NAME    = os.environ.get('AWS_BUCKET_NAME')
+AWS_ACCESS_KEY_ID     = os.environ.get('AWS_ACCESS_KEY_ID') or os.environ.get('ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY') or os.environ.get('ACCESS_KEY_SECRET')
+AWS_BUCKET_NAME       = (os.environ.get('AWS_BUCKET_NAME')
+                         or os.environ.get('BUCKET')
+                         or os.environ.get('RAILWAY_BUCKET_NAME'))
+AWS_ENDPOINT_URL      = os.environ.get('AWS_ENDPOINT_URL') or os.environ.get('ENDPOINT')
+AWS_DEFAULT_REGION    = (os.environ.get('AWS_DEFAULT_REGION')
+                         or os.environ.get('REGION', 'auto'))
 RAILWAY_PUBLIC_DOMAIN = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '')
 
 # Local file storage for S3 fallback / Railway Volume
