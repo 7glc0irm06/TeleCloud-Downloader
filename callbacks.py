@@ -372,7 +372,7 @@ def callback_query(call):
         if not url:
             bot.answer_callback_query(call.id, t(cid, 'link_expired_toast'), show_alert=True)
             return
-        dest = get_dest(cid) or 'gd'
+        dest = get_dest(cid) or 'tg'
         fmt  = "bestaudio/best" if kind == 'a' else "bestvideo+bestaudio/best"
         from dest_helpers import (get_audio_format, get_audio_quality,
                                   get_video_format, get_subtitle, get_chapters)
