@@ -10,11 +10,15 @@ import re
 import threading
 from datetime import date, datetime, timedelta, timezone
 
-import psycopg2
-import psycopg2.extras
-
-# Railway injects DATABASE_URL automatically when the Postgres plugin is linked.
 from config import DATABASE_URL
+
+USE_POSTGRES = bool(DATABASE_URL)
+
+if USE_POSTGRES:
+    import psycopg2
+    import psycopg2.extras
+else:
+    import sqlite3
 
 _local = threading.local()
 _db_lock = threading.Lock()
@@ -23,14 +27,19 @@ _db_lock = threading.Lock()
 def _get_conn():
     """Thread-local connection (psycopg2 connections are not thread-safe)."""
     if not hasattr(_local, "conn") or _local.conn is None or _local.conn.closed:
-        _local.conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
-        _local.conn.autocommit = False
+        if USE_POSTGRES:
+            _local.conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
+            _local.conn.autocommit = False
+        else:
+            _local.conn = sqlite3.connect("/app/user_configs/telecloud.db", check_same_thread=False)
+            _local.conn.row_factory = sqlite3.Row
+            _local.conn.execute("PRAGMA journal_mode=WAL")
     return _local.conn
 
 
 def _sql(q: str) -> str:
-    """Convert sqlite-style '?' placeholders to psycopg2 '%s'."""
-    return q.replace("?", "%s")
+    """Convert sqlite-style '?' placeholders to psycopg2 '%s' (no-op for sqlite)."""
+    return q.replace("?", "%s") if USE_POSTGRES else q
 
 
 def _run(q: str, params: tuple = ()):
@@ -45,7 +54,10 @@ def _run(q: str, params: tuple = ()):
 def _fetchone(q: str, params: tuple = ()):
     with _db_lock:
         conn = _get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if USE_POSTGRES:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        else:
+            cur = conn.cursor()
         cur.execute(_sql(q), params)
         return cur.fetchone()
 
@@ -53,70 +65,129 @@ def _fetchone(q: str, params: tuple = ()):
 def _fetchall(q: str, params: tuple = ()):
     with _db_lock:
         conn = _get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if USE_POSTGRES:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        else:
+            cur = conn.cursor()
         cur.execute(_sql(q), params)
         return cur.fetchall()
 
 
 def _ensure_users_columns(conn) -> None:
-    cur = conn.cursor()
-    cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='users'")
-    cols = {r[0] for r in cur.fetchall()}
-    adds = [
-        "username TEXT",
-        "display_name TEXT",
-        "monthly_files_downloaded INTEGER NOT NULL DEFAULT 0",
-        "monthly_bytes_downloaded INTEGER NOT NULL DEFAULT 0",
-        "last_active_month TEXT",
-        "custom_quota_monthly_files INTEGER",
-        "custom_quota_monthly_bytes INTEGER",
-        "github_token TEXT",
-        "github_repo TEXT",
-        "upload_dest TEXT NOT NULL DEFAULT 'tg'",
-    ]
-    for col in adds:
-        name = col.split()[0]
-        if name not in cols:
-            cur.execute(f"ALTER TABLE users ADD COLUMN {col}")
-    conn.commit()
+    if USE_POSTGRES:
+        cur = conn.cursor()
+        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='users'")
+        cols = {r[0] for r in cur.fetchall()}
+        adds = [
+            "username TEXT",
+            "display_name TEXT",
+            "monthly_files_downloaded INTEGER NOT NULL DEFAULT 0",
+            "monthly_bytes_downloaded INTEGER NOT NULL DEFAULT 0",
+            "last_active_month TEXT",
+            "custom_quota_monthly_files INTEGER",
+            "custom_quota_monthly_bytes INTEGER",
+            "github_token TEXT",
+            "github_repo TEXT",
+            "upload_dest TEXT NOT NULL DEFAULT 'tg'",
+        ]
+        for col in adds:
+            name = col.split()[0]
+            if name not in cols:
+                cur.execute(f"ALTER TABLE users ADD COLUMN {col}")
+        conn.commit()
+    else:
+        # SQLite: check pragma, add missing columns
+        cur = conn.cursor()
+        cur.execute("PRAGMA table_info(users)")
+        cols = {r[1] for r in cur.fetchall()}
+        adds = [
+            "username TEXT",
+            "display_name TEXT",
+            "monthly_files_downloaded INTEGER NOT NULL DEFAULT 0",
+            "monthly_bytes_downloaded INTEGER NOT NULL DEFAULT 0",
+            "last_active_month TEXT",
+            "custom_quota_monthly_files INTEGER",
+            "custom_quota_monthly_bytes INTEGER",
+            "github_token TEXT",
+            "github_repo TEXT",
+            "upload_dest TEXT NOT NULL DEFAULT 'tg'",
+        ]
+        for col in adds:
+            name = col.split()[0]
+            if name not in cols:
+                cur.execute(f"ALTER TABLE users ADD COLUMN {col}")
+        conn.commit()
 
 
 def init_db() -> None:
     with _db_lock:
         conn = _get_conn()
-        cur = conn.cursor()
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                user_id            BIGINT PRIMARY KEY,
-                is_approved        INTEGER NOT NULL DEFAULT 0,
-                files_downloaded   INTEGER NOT NULL DEFAULT 0,
-                bytes_downloaded   BIGINT NOT NULL DEFAULT 0,
-                last_active_date   TEXT,
-                custom_quota_files INTEGER,
-                custom_quota_bytes BIGINT,
-                default_quality    TEXT    NOT NULL DEFAULT '720',
-                audio_mode         INTEGER NOT NULL DEFAULT 0
+        if USE_POSTGRES:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS users (
+                    user_id            BIGINT PRIMARY KEY,
+                    is_approved        INTEGER NOT NULL DEFAULT 0,
+                    files_downloaded   INTEGER NOT NULL DEFAULT 0,
+                    bytes_downloaded   BIGINT NOT NULL DEFAULT 0,
+                    last_active_date   TEXT,
+                    custom_quota_files INTEGER,
+                    custom_quota_bytes BIGINT,
+                    default_quality    TEXT    NOT NULL DEFAULT '720',
+                    audio_mode         INTEGER NOT NULL DEFAULT 0
+                )
+                """
             )
-            """
-        )
-        conn.commit()
-        _ensure_users_columns(conn)
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS download_events (
-                id               SERIAL PRIMARY KEY,
-                user_id          BIGINT NOT NULL,
-                bytes_downloaded BIGINT NOT NULL,
-                created_at       TEXT NOT NULL
+            conn.commit()
+            _ensure_users_columns(conn)
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS download_events (
+                    id               SERIAL PRIMARY KEY,
+                    user_id          BIGINT NOT NULL,
+                    bytes_downloaded BIGINT NOT NULL,
+                    created_at       TEXT NOT NULL
+                )
+                """
             )
-            """
-        )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_download_events_user_created "
-            "ON download_events(user_id, created_at)"
-        )
-        conn.commit()
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_download_events_user_created "
+                "ON download_events(user_id, created_at)"
+            )
+            conn.commit()
+        else:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS users (
+                    user_id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    is_approved        INTEGER NOT NULL DEFAULT 0,
+                    files_downloaded   INTEGER NOT NULL DEFAULT 0,
+                    bytes_downloaded   INTEGER NOT NULL DEFAULT 0,
+                    last_active_date   TEXT,
+                    custom_quota_files INTEGER,
+                    custom_quota_bytes INTEGER,
+                    default_quality    TEXT    NOT NULL DEFAULT '720',
+                    audio_mode         INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS download_events (
+                    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id          INTEGER NOT NULL,
+                    bytes_downloaded INTEGER NOT NULL,
+                    created_at       TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_download_events_user_created "
+                "ON download_events(user_id, created_at)"
+            )
+            conn.commit()
+            _ensure_users_columns(conn)
 
 
 def _normalize_username(username):

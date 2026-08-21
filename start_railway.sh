@@ -23,16 +23,19 @@ echo "[railway] starting telegram-bot-api on 0.0.0.0:8081 (local mode)"
 
 sleep 4
 
-# ── Wait for Postgres (if DATABASE_URL is set) ──
+# ── Wait for Postgres only if DATABASE_URL is provided ──
 if [ -n "$DATABASE_URL" ]; then
-  echo "[railway] waiting for Postgres..."
+  echo "[railway] DATABASE_URL found, waiting for Postgres..."
   for i in $(seq 1 30); do
     if python3 -c "import psycopg2,os; psycopg2.connect(os.environ['DATABASE_URL'], connect_timeout=2).close(); print('ok')" 2>/dev/null; then
       echo "[railway] Postgres is up"
       break
     fi
+    echo "[railway] Postgres not ready yet (attempt $i/30), retrying..."
     sleep 2
   done
+else
+  echo "[railway][WARN] DATABASE_URL not set — bot will use local SQLite fallback"
 fi
 
 echo "[railway] starting bot"
