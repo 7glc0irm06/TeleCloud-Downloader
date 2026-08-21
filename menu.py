@@ -72,15 +72,19 @@ def settings_inline_markup(cid=None):
 
     # ── Section B: Toggle / Cycle settings (2-column grid) ────
     audio_mode = is_audio_mode(cid) if cid else False
-    tg_mode    = cid in config.tg_upload_mode if cid else False
-    gd_mode    = cid in config.gd_upload_mode if cid else False
 
     media_label   = (get_audio_mode_label(cid)  if cid else "🎬 Media: Video")
     if cid:
-        if tg_mode:
+        import db
+        d = db.get_upload_dest(cid)
+        if d == 'tg':
             upload_label = t(cid, 'btn_upload_tg')
-        elif gd_mode:
+        elif d == 'gd':
             upload_label = t(cid, 'btn_upload_gd')
+        elif d == 's3':
+            upload_label = '☁️ آپلود: Railway S3'
+        elif d == 'github':
+            upload_label = '🐙 آپلود: GitHub'
         else:
             upload_label = t(cid, 'btn_upload_ask')
     else:

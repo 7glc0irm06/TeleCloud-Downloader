@@ -174,8 +174,11 @@ def callback_query(call):
         elif action == "upload":
             import db
             current = db.get_upload_dest(cid)
-            # cycle: tg → s3 → github → tg
+            # cycle: tg → gd → s3 → github → tg
             if current == 'tg':
+                db.set_upload_dest(cid, 'gd')
+                toast = 'مقصد آپلود: Google Drive'
+            elif current == 'gd':
                 db.set_upload_dest(cid, 's3')
                 toast = 'مقصد آپلود: Railway S3'
             elif current == 's3':

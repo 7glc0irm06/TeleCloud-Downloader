@@ -79,14 +79,12 @@ def get_dest(cid) -> str:
     """Return the user's default upload destination (persisted in Postgres)."""
     import db
     try:
-        return db.get_upload_dest(cid)
+        d = db.get_upload_dest(cid)
+        return d
     except Exception:
-        # fallback to in-memory sets if DB unavailable
-        if cid in config.tg_upload_mode:
-            return 'tg'
-        if cid in config.gd_upload_mode:
-            return 'gd'
-        return 'tg'
+        # fallback: admin defaults to tg, others to gd (original behaviour)
+        from config import ADMIN_ID
+        return 'tg' if cid == ADMIN_ID else 'gd'
 
 
 def should_ask_dest(cid) -> bool:
