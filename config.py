@@ -20,6 +20,12 @@ USER_CONFIGS_DIR = '/app/user_configs'
 # The single Telegram user_id that has full admin privileges.
 ADMIN_ID = int(os.environ.get('ADMIN_ID', '0'))
 
+# Default upload destination is Telegram (2GB via Local Bot API).
+# Users start in tg_upload_mode; they can switch to Drive from the menu.
+tg_upload_mode = set()
+if ADMIN_ID > 0:
+    tg_upload_mode.add(ADMIN_ID)
+
 # When True, any user who sends /start can self-register.
 # When False, users must request access and wait for admin approval.
 REGISTRATION_OPEN = os.environ.get('REGISTRATION_OPEN', 'false').lower() in ('1', 'true', 'yes')
