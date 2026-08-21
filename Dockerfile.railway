@@ -31,8 +31,5 @@ COPY . /app
 # yt-dlp node js runtime
 RUN mkdir -p /root/.config/yt-dlp && echo '--js-runtimes node' > /root/.config/yt-dlp/config
 
-# volumes: persistent data
-VOLUME ["/var/lib/telegram-bot-api", "/root/downloads"]
-
 EXPOSE 8081
 CMD ["sh", "/app/start_railway.sh"]
