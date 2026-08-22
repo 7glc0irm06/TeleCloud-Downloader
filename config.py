@@ -145,6 +145,15 @@ if TELEGRAM_LOCAL:
     apihelper.API_URL = "http://localhost:8081/bot{0}/{1}"
     apihelper.FILE_URL = "http://localhost:8081"
 bot = telebot.TeleBot(TOKEN, parse_mode=None)
+# Wrap answer_callback_query so an expired/invalid query id (user clicks an
+# old button after a restart) never crashes the whole callback handler.
+_orig_answer = bot.answer_callback_query
+def _safe_answer(call_id, *a, **k):
+    try:
+        return _orig_answer(call_id, *a, **k)
+    except Exception:
+        return None
+bot.answer_callback_query = _safe_answer
 # Set explicit timeouts for all short API calls (edit, send_message, etc.).
 # Large-file uploads override this per-call via timeout=upload_timeout in
 # uploaders/telegram_upload.py, so these values only affect small payloads.
