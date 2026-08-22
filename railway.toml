@@ -7,22 +7,7 @@ startCommand = "sh /app/start_railway.sh"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
 
-[[services]]
-  name = "telecloud"
-
-  [services.variables]
-    # Postgres / Redis / Bucket env vars are injected automatically by Railway
-    # when those plugins are linked to this service.
-
-[[services]]
-  name = "postgres"
-  source = "postgres"
-
-[[services]]
-  name = "bucket"
-  source = "bucket"
-
-[services.volumes]
+[volumes]
   "/var/lib/telegram-bot-api" = "/var/lib/telegram-bot-api"
   "/root/downloads" = "/root/downloads"
   "/root/storage" = "/root/storage"
