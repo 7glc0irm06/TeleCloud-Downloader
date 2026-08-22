@@ -194,6 +194,24 @@ def upload_to_gdrive_cancellable(
     except Exception:
         pass
 
+    # ── Validate token isn't empty before spawning rclone ───────────────────
+    user_conf = _user_config_path(uid) if uid is not None else None
+    if user_conf and user_conf.exists():
+        try:
+            import configparser
+            cp = configparser.ConfigParser()
+            cp.read(str(user_conf))
+            tok = cp.get('gdrive', 'token', fallback='')
+            if not tok or tok.strip() == '{}':
+                raise RuntimeError(
+                    "❌ توکن گوگل درایو خالی است. لطفاً دوباره مرحله اتصال "
+                    "(☁️ اتصال گوگل درایو) را با client_id شخصی انجام دهید."
+                )
+        except RuntimeError:
+            raise
+        except Exception:
+            pass
+
     cmd = [
         "rclone", "copy", path, drive_dest,
         "--progress",
