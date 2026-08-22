@@ -171,6 +171,26 @@ def callback_query(call):
             config.user_download_mode[cid] = new_mode
             toast = t(cid, 'mode_set_toast')
 
+        elif action == "destmenu":
+            # Open explicit destination picker as a new message
+            bot.answer_callback_query(call.id)
+            from menu import destination_pick_markup
+            bot.send_message(cid, "مقصد آپلود رو انتخاب کن:",
+                             reply_markup=destination_pick_markup(cid))
+            return
+
+        elif action == "back":
+            # Return to the main settings panel (from destination picker)
+            bot.answer_callback_query(call.id)
+            from menu import settings_inline_markup
+            try:
+                bot.edit_message_reply_markup(
+                    cid, call.message.message_id,
+                    reply_markup=settings_inline_markup(cid))
+            except Exception:
+                pass
+            return
+
         elif action == "upload":
             import db
             current = db.get_upload_dest(cid)
@@ -243,6 +263,25 @@ def callback_query(call):
             bot.answer_callback_query(call.id)
             from handlers import _send_profile_stats
             _send_profile_stats(cid)
+            return
+
+        elif action.startswith("dest|"):
+            # Explicit destination pick: dest|tg / dest|gd / dest|s3 / dest|github
+            import db
+            choice = action.split("|", 1)[1]
+            if choice in ("tg", "gd", "s3", "github"):
+                db.set_upload_dest(cid, choice)
+                bot.answer_callback_query(call.id, f"مقصد تنظیم شد: {choice}")
+                # refresh the picker with the new checkmark
+                from menu import destination_pick_markup
+                try:
+                    bot.edit_message_reply_markup(
+                        cid, call.message.message_id,
+                        reply_markup=destination_pick_markup(cid))
+                except Exception:
+                    pass
+            else:
+                bot.answer_callback_query(call.id)
             return
 
         else:

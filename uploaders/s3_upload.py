@@ -1,13 +1,16 @@
 """
 s3_upload.py - Upload a file to the Railway Bucket (S3-compatible) and return
-a public download link based on RAILWAY_PUBLIC_DOMAIN.
+a working download link.
+
+Railway buckets are not served at RAILWAY_PUBLIC_DOMAIN directly, so we return
+a presigned GET URL (valid 7 days). This works regardless of bucket privacy.
 """
 
 import os
 import boto3
 from config import (
     AWS_ENDPOINT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
-    AWS_DEFAULT_REGION, AWS_BUCKET_NAME, RAILWAY_PUBLIC_DOMAIN, UPLOAD_VOLUME,
+    AWS_DEFAULT_REGION, AWS_BUCKET_NAME,
 )
 
 
@@ -22,10 +25,11 @@ def _client():
 
 
 def upload_to_s3(file_path: str, chat_id: int, status_msg=None) -> str | None:
-    """Upload file_path to the bucket, return a public URL or None on failure."""
+    """Upload file_path to the bucket, return a presigned download URL or None."""
     if not AWS_BUCKET_NAME:
         return None
     fname = os.path.basename(file_path)
+    # object key: files/<chat_id>/<filename>
     key = f"files/{chat_id}/{fname}"
     try:
         _client().upload_file(file_path, AWS_BUCKET_NAME, key)
@@ -33,9 +37,13 @@ def upload_to_s3(file_path: str, chat_id: int, status_msg=None) -> str | None:
         print(f"[s3] upload failed: {e}")
         return None
 
-    base = RAILWAY_PUBLIC_DOMAIN or ""
-    if not base:
-        # Fallback: serve via local volume + tiny http server (not implemented here)
+    try:
+        url = _client().generate_presigned_url(
+            "get_object",
+            Params={"Bucket": AWS_BUCKET_NAME, "Key": key},
+            ExpiresIn=7 * 24 * 3600,  # 7 days
+        )
+        return url
+    except Exception as e:
+        print(f"[s3] presign failed: {e}")
         return None
-    base = base if base.startswith("http") else f"https://{base}"
-    return f"{base.rstrip('/')}/files/{chat_id}/{fname}"

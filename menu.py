@@ -113,7 +113,7 @@ def settings_inline_markup(cid=None):
     # Row 2: Quality · Upload destination
     mk.row(
         types.InlineKeyboardButton(quality_label, callback_data="set|qual"),
-        types.InlineKeyboardButton(upload_label,  callback_data="set|upload"),
+        types.InlineKeyboardButton(upload_label,  callback_data="set|destmenu"),
     )
     # Row 3: Subtitle · Chapters
     mk.row(
@@ -125,6 +125,22 @@ def settings_inline_markup(cid=None):
     # Row 5: Google Drive connection (full width, status-aware)
     mk.add(types.InlineKeyboardButton(_gdrive_button_label(cid), callback_data="set|gdrive"))
 
+    return mk
+
+
+def destination_pick_markup(cid=None):
+    """Standalone menu: pick one of the 4 destinations explicitly."""
+    import db
+    cur = db.get_upload_dest(cid) if cid else 'tg'
+    mk = types.InlineKeyboardMarkup(row_width=2)
+
+    def btn(key, label):
+        mark = "✅ " if cur == key else ""
+        return types.InlineKeyboardButton(mark + label, callback_data=f"dest|{key}")
+
+    mk.row(btn('tg', "📤 تلگرام"), btn('gd', "☁️ Google Drive"))
+    mk.row(btn('s3', "🗄 Railway S3"), btn('github', "🐙 GitHub"))
+    mk.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="set|back"))
     return mk
 
 
