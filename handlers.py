@@ -464,13 +464,13 @@ def handle_incoming_files(message):
         info = bot.get_file(fid)
         file_path = _resolve_local_bot_api_path(info.file_path)
         fp = os.path.join(DOWNLOAD_DIR, fname)
-        if file_path.startswith('/'):
+        if file_path.startswith('/') and os.path.exists(file_path):
             # Local Bot API server: read the file directly from the shared volume.
             with open(file_path, 'rb') as _src, open(fp, 'wb') as _dst:
                 _dst.write(_src.read())
         else:
-            # Fallback: download via cloud Telegram API
-            data = bot.download_file(file_path)
+            # Fallback: download via cloud Telegram API (works without Local API)
+            data = bot.download_file(info.file_path)
             with open(fp, 'wb') as f:
                 f.write(data)
 
