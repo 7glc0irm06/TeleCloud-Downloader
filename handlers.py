@@ -380,6 +380,7 @@ def cmd_broadcast(message):
 # =============================================================
 @bot.message_handler(content_types=['document', 'video', 'audio', 'photo', 'voice', 'video_note'])
 def handle_incoming_files(message):
+    import db
     cid   = message.chat.id
     state = user_state.get(cid)
     db.touch_user_identity(
@@ -465,7 +466,6 @@ def handle_incoming_files(message):
                 f.write(data)
 
         # Ask which destination to use for THIS file (per-file choice)
-        import db
         from menu import destination_pick_markup
         config.pending_uploads[cid] = {'fp': fp, 'status_msg_id': status_msg.message_id}
         bot.edit_message_text(
