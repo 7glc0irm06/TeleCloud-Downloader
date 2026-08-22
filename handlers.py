@@ -979,11 +979,8 @@ def _handle_youtube_link(message, cid, text):
                 dest = get_dest(cid)
                 yt_label = YT_LABELS.get(quality, quality)
                 if should_ask_dest(cid):
-                    dest_mk = types.InlineKeyboardMarkup()
-                    dest_mk.row(
-                        types.InlineKeyboardButton(t(cid, 'btn_tg'), callback_data=f"ytd|{quality}|tg|{msg.message_id}"),
-                        types.InlineKeyboardButton(t(cid, 'btn_gd'), callback_data=f"ytd|{quality}|gd|{msg.message_id}"),
-                    )
+                    from menu import dest_pick_markup
+                    dest_mk = dest_pick_markup(cid, prefix=f"ytd|{quality}|{msg.message_id}", back=f"ytd|{quality}|{msg.message_id}|back")
                     bot.edit_message_text(
                         t(cid, 'yt_quality_dest_msg', title=title, m=m, s=s_str, quality=yt_label),
                         cid, msg.message_id, reply_markup=dest_mk)
@@ -1046,11 +1043,8 @@ def _handle_torrent_link(message, cid, text):
         dest_icon = '📱' if cid in config.tg_upload_mode else '☁️'
         bot.reply_to(message, t(cid, 'torrent_queued', dest_icon=dest_icon))
     else:
-        markup = types.InlineKeyboardMarkup()
-        markup.row(
-            types.InlineKeyboardButton(t(cid, 'btn_tg'), callback_data=f"tr|tg|{message.message_id}"),
-            types.InlineKeyboardButton(t(cid, 'btn_gd'), callback_data=f"tr|gd|{message.message_id}"),
-        )
+        from menu import dest_pick_markup
+        markup = dest_pick_markup(cid, prefix=f"tr|{message.message_id}", back=f"tr|{message.message_id}|back")
         bot.reply_to(message, t(cid, 'select_dest'), reply_markup=markup)
 
 
@@ -1064,11 +1058,8 @@ def _handle_direct_link(message, cid, text):
         dest_icon = '📱' if cid in config.tg_upload_mode else '☁️'
         bot.reply_to(message, t(cid, 'direct_queued', dest_icon=dest_icon))
     else:
-        markup = types.InlineKeyboardMarkup()
-        markup.row(
-            types.InlineKeyboardButton(t(cid, 'btn_tg'), callback_data=f"dl|tg|{message.message_id}"),
-            types.InlineKeyboardButton(t(cid, 'btn_gd'), callback_data=f"dl|gd|{message.message_id}"),
-        )
+        from menu import dest_pick_markup
+        markup = dest_pick_markup(cid, prefix=f"dl|{message.message_id}", back=f"dl|{message.message_id}|back")
         bot.reply_to(message, t(cid, 'select_dest'), reply_markup=markup)
 
 

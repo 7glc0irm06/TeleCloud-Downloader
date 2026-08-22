@@ -128,20 +128,29 @@ def settings_inline_markup(cid=None):
     return mk
 
 
-def destination_pick_markup(cid=None):
-    """Standalone menu: pick one of the 4 destinations explicitly."""
+def dest_pick_markup(cid=None, prefix: str = "dest", back: str = "set|back"):
+    """
+    Generic 4-destination picker. `prefix` lets callers namespace the
+    callback (e.g. 'dest' for file upload, 'ytd' for youtube, 'tor' for torrent).
+    All callbacks become:  <prefix>|<key>   where key ∈ tg|gd|s3|github
+    """
     import db
     cur = db.get_upload_dest(cid) if cid else 'tg'
     mk = types.InlineKeyboardMarkup(row_width=2)
 
     def btn(key, label):
         mark = "✅ " if cur == key else ""
-        return types.InlineKeyboardButton(mark + label, callback_data=f"dest|{key}")
+        return types.InlineKeyboardButton(mark + label, callback_data=f"{prefix}|{key}")
 
     mk.row(btn('tg', "📤 تلگرام"), btn('gd', "☁️ Google Drive"))
     mk.row(btn('s3', "🗄 Railway S3"), btn('github', "🐙 GitHub"))
-    mk.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="set|back"))
+    mk.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data=back))
     return mk
+
+
+def destination_pick_markup(cid=None):
+    """Standalone menu: pick one of the 4 destinations explicitly."""
+    return dest_pick_markup(cid, prefix="dest", back="set|back")
 
 
 def cancel_markup(cid=None):

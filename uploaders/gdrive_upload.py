@@ -12,8 +12,6 @@ from utils import build_rich_progress_card, cleanup_path, fmt_size
 # ──────────────────────────────────────────────────────────────
 # Per-user rclone config resolution
 # ──────────────────────────────────────────────────────────────
-DEFAULT_RCLONE_CONF = "/root/.config/rclone/rclone.conf"
-
 
 def _user_config_path(user_id: int) -> Path:
     """Return the per-user rclone config path (may not exist)."""
@@ -44,11 +42,8 @@ def get_rclone_config_args(user_id) -> list[str]:
             return ["--config", str(user_conf)]
 
     # ── Steps 2 & 3: no personal config found ────────────────────────────
-    if str(user_id) == str(ADMIN_ID):
-        # Admin is allowed to fall back to the system-wide default config
-        return ["--config", DEFAULT_RCLONE_CONF]
-
-    # Any other user: hard block — do NOT fall back to the admin's Drive
+    # Admin is now treated exactly like a regular user: they MUST connect
+    # their own Drive (rclone_<uid>.conf) before uploading. No system default.
     raise RuntimeError(
         "❌ شما هنوز گوگل درایو خود را متصل نکردهاید. "
         "لطفاً از بخش تنظیمات (☁️ اتصال گوگل درایو) اقدام کنید."

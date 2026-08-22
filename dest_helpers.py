@@ -89,7 +89,11 @@ def get_dest(cid) -> str:
 
 def should_ask_dest(cid) -> bool:
     """Return True if the user has not yet chosen a destination."""
-    return cid not in config.tg_upload_mode and cid not in config.gd_upload_mode
+    import db
+    try:
+        return db.get_upload_dest(cid) is None
+    except Exception:
+        return True
 
 
 # =============================================================

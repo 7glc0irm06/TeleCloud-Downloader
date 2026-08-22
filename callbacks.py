@@ -604,11 +604,8 @@ def callback_query(call):
         if not url:
             bot.answer_callback_query(call.id, t(cid, 'link_expired_toast'), show_alert=True)
             return
-        dest_mk = types.InlineKeyboardMarkup()
-        dest_mk.row(
-            types.InlineKeyboardButton(t(cid, 'btn_tg'), callback_data=f"scd|{kind}|{fid}|tg|{mid}"),
-            types.InlineKeyboardButton(t(cid, 'btn_gd'), callback_data=f"scd|{kind}|{fid}|gd|{mid}"),
-        )
+        from menu import dest_pick_markup
+        dest_mk = dest_pick_markup(cid, prefix=f"scd|{kind}|{fid}|{mid}", back=f"scd|{kind}|{fid}|{mid}|back")
         try:
             bot.edit_message_text(t(cid, 'select_dest'), cid, call.message.message_id,
                                   reply_markup=dest_mk)
@@ -618,9 +615,12 @@ def callback_query(call):
         return
 
     if data.startswith("scd|"):
+        # Format: scd|kind|fid|mid|dest
         parts = data.split('|', 4)
-        # Format: scd|kind|fid|dest|mid
-        _, kind, fid, dest, mid_s = parts
+        if len(parts) < 5:
+            bot.answer_callback_query(call.id, t(cid, 'invalid_option_toast'), show_alert=True)
+            return
+        _, kind, fid, mid_s, dest = parts
         mid = int(mid_s)
         with cache_lock:
             url = url_cache.get((cid, mid))
@@ -654,6 +654,17 @@ def callback_query(call):
     # ── YouTube quality ───────────────────────────────────────
     if data.startswith("yt|"):
         _handle_yt_quality(call, cid, data)
+        return
+
+    # Generic back button for the per-source destination pickers
+    # (formats: ytd|<q>|<mid>|back, tr|<mid>|back, dl|<mid>|back, scd|<k>|<f>|<mid>|back)
+    if data.endswith("|back"):
+        bot.answer_callback_query(call.id)
+        try:
+            bot.edit_message_text(t(cid, 'select_dest_cancelled'), cid, call.message.message_id,
+                                  reply_markup=None)
+        except Exception:
+            pass
         return
 
     if data.startswith("ytd|"):
@@ -805,11 +816,8 @@ def _handle_yt_quality(call, cid, data):
             pass
         bot.answer_callback_query(call.id)
     else:
-        dest_mk = types.InlineKeyboardMarkup()
-        dest_mk.row(
-            types.InlineKeyboardButton(t(cid, 'btn_tg'), callback_data=f"ytd|{quality}|tg|{msg_id}"),
-            types.InlineKeyboardButton(t(cid, 'btn_gd'), callback_data=f"ytd|{quality}|gd|{msg_id}"),
-        )
+        from menu import dest_pick_markup
+        dest_mk = dest_pick_markup(cid, prefix=f"ytd|{quality}|{msg_id}", back=f"ytd|{quality}|{msg_id}|back")
         try:
             bot.edit_message_text(
                 t(cid, 'yt_quality_dest_only', quality=YT_LABELS.get(quality, quality)),
@@ -821,7 +829,12 @@ def _handle_yt_quality(call, cid, data):
 
 def _handle_yt_dest(call, cid, data):
     import yt_dlp
-    _, quality, dest, mid = data.split('|', 3)
+    # data format: ytd|{quality}|{mid}|{dest}
+    parts = data.split('|', 3)
+    if len(parts) < 4:
+        bot.answer_callback_query(call.id, t(cid, 'invalid_option_toast'), show_alert=True)
+        return
+    _, quality, mid, dest = parts
     msg_id = int(mid)
     with cache_lock:
         url = url_cache.get((cid, msg_id))
@@ -1511,17 +1524,10 @@ def _handle_gdrive_settings(call, cid: int) -> None:
     global rclone.conf and should never be prompted to reconnect.
     """
     from pathlib import Path
-    from config import USER_CONFIGS_DIR, COLAB_URL, ADMIN_ID
+    from config import USER_CONFIGS_DIR, COLAB_URL
 
-    # ── Admin always shows "connected via system default" ────────────────
-    if cid == ADMIN_ID:
-        bot.send_message(
-            cid,
-            t(cid, 'gdrive_status_connected'),
-            parse_mode='HTML',
-        )
-        return
-
+    # Admin uses the same per-user rclone config flow as regular users,
+    # so they can connect their OWN Drive too.
     conf_path = Path(USER_CONFIGS_DIR) / f"rclone_{cid}.conf"
 
     if conf_path.exists():

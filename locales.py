@@ -733,6 +733,10 @@ STRINGS = {
         'fa': "مقصد را انتخاب کنید:",
         'en': "Select destination:",
     },
+    'select_dest_cancelled': {
+        'fa': "انتخاب مقصد لغو شد.",
+        'en': "Destination selection cancelled.",
+    },
 
     # ── Playlist ───────────────────────────────────────────────
     'playlist_quality': {
