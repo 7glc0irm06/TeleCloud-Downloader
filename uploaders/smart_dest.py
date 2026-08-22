@@ -26,16 +26,12 @@ def smart_dest(file_path: str, status_msg, dest: str = None, folder_name: str = 
         task_info = {}
 
     if dest is None:
-        if cid in tg_upload_mode:
+        import db
+        try:
+            d = db.get_upload_dest(cid)
+            dest = d if d in ('tg', 's3', 'github', 'gd') else 'tg'
+        except Exception:
             dest = 'tg'
-        else:
-            # per-user stored dest (s3/github) or fall back to Drive
-            import db
-            try:
-                d = db.get_upload_dest(cid)
-                dest = d if d in ('s3', 'github') else 'gd'
-            except Exception:
-                dest = 'gd'
 
     size = get_file_size(file_path)
 
