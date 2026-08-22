@@ -84,8 +84,8 @@ MAX_CONCURRENT_DOWNLOADS = int(os.environ.get('MAX_CONCURRENT_DOWNLOADS', '2'))
 # Per-user runtime state
 # =============================================================
 user_state       = {}
-tg_upload_mode   = set()
-gd_upload_mode   = set()
+# pending file uploads awaiting destination pick: cid -> {'fp':..., 'status_msg_id':...}
+pending_uploads  = {}
 
 # Default quality per user (video only)
 # Possible values: 'manual', 'best', '1080', '720', '480'

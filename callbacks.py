@@ -268,20 +268,40 @@ def callback_query(call):
         elif action.startswith("dest|"):
             # Explicit destination pick: dest|tg / dest|gd / dest|s3 / dest|github
             import db
+            from config import pending_uploads
             choice = action.split("|", 1)[1]
-            if choice in ("tg", "gd", "s3", "github"):
-                db.set_upload_dest(cid, choice)
-                bot.answer_callback_query(call.id, f"مقصد تنظیم شد: {choice}")
-                # refresh the picker with the new checkmark
-                from menu import destination_pick_markup
-                try:
-                    bot.edit_message_reply_markup(
-                        cid, call.message.message_id,
-                        reply_markup=destination_pick_markup(cid))
-                except Exception:
-                    pass
-            else:
+            if choice not in ("tg", "gd", "s3", "github"):
                 bot.answer_callback_query(call.id)
+                return
+
+            # Case A: a file is pending — upload it to the chosen destination NOW
+            pend = pending_uploads.pop(cid, None)
+            if pend:
+                fp = pend['fp']
+                status_msg_id = pend['status_msg_id']
+                bot.answer_callback_query(call.id, f"آپلود به: {choice}")
+                try:
+                    bot.edit_message_text("⏳ در حال آپلود...", cid, status_msg_id,
+                                          reply_markup=None)
+                    status_msg = bot.send_message(cid, "⏳ آپلود...")
+                    # route through smart_dest with explicit dest
+                    from uploaders.smart_dest import smart_dest
+                    smart_dest(fp, status_msg, dest=choice, folder_name="FilesFromTel",
+                               task_info={'chat_id': cid, 'user_id': cid})
+                except Exception as e:
+                    bot.send_message(cid, f"❌ خطا: {e}")
+                return
+
+            # Case B: no pending file — just set default destination
+            db.set_upload_dest(cid, choice)
+            bot.answer_callback_query(call.id, f"مقصد پیش‌فرض تنظیم شد: {choice}")
+            from menu import destination_pick_markup
+            try:
+                bot.edit_message_reply_markup(
+                    cid, call.message.message_id,
+                    reply_markup=destination_pick_markup(cid))
+            except Exception:
+                pass
             return
 
         else:

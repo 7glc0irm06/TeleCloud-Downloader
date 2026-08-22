@@ -463,10 +463,15 @@ def handle_incoming_files(message):
             data = bot.download_file(file_path)
             with open(fp, 'wb') as f:
                 f.write(data)
-        upload_file_to_gdrive_folder(
-            fp, status_msg, "FilesFromTel",
-            user_id=message.from_user.id,
-        )
+
+        # Ask which destination to use for THIS file (per-file choice)
+        import db
+        from menu import destination_pick_markup
+        config.pending_uploads[cid] = {'fp': fp, 'status_msg_id': status_msg.message_id}
+        bot.edit_message_text(
+            "فایل دریافت شد. مقصد آپلود رو انتخاب کن:",
+            cid, status_msg.message_id,
+            reply_markup=destination_pick_markup(cid))
 
     except Exception as e:
         text = f"❌ {friendly_error(str(e), cid=cid)}"
