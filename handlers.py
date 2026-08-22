@@ -167,12 +167,21 @@ def disable_user_and_stop_tasks(user_id: int) -> int:
 # =============================================================
 @bot.message_handler(commands=['start'])
 def start(message):
+    import db
     cid = message.chat.id
     db.touch_user_identity(
         cid,
         message.from_user.username,
         _display_name_from_user(message.from_user),
     )
+
+    # Auto-promote first user as admin if ADMIN_ID was never configured
+    if config.ADMIN_ID == 0:
+        try:
+            db.approve_user(cid)
+            config.ADMIN_ID = cid
+        except Exception:
+            pass
 
     # Language picker first
     if not has_lang(cid):
