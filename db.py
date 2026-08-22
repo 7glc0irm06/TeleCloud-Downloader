@@ -7,10 +7,12 @@ Each user can store their own GitHub token (github_token) for per-user uploads.
 """
 
 import re
+import os
 import threading
 from datetime import date, datetime, timedelta, timezone
 
-from config import DATABASE_URL
+# Read DATABASE_URL directly from env to avoid circular import with config.py
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 USE_POSTGRES = bool(DATABASE_URL)
 
@@ -26,7 +28,18 @@ _db_lock = threading.Lock()
 
 def _get_conn():
     """Thread-local connection (psycopg2 connections are not thread-safe)."""
-    if not hasattr(_local, "conn") or _local.conn is None or _local.conn.closed:
+    conn = getattr(_local, "conn", None)
+    is_closed = False
+    if conn is not None:
+        # psycopg2 has .closed; sqlite3 does not
+        is_closed = getattr(conn, "closed", 0) != 0 if USE_POSTGRES else False
+        if not USE_POSTGRES and conn is not None:
+            # sqlite3: check via in-transition state
+            try:
+                conn.execute("SELECT 1")
+            except Exception:
+                is_closed = True
+    if conn is None or is_closed:
         if USE_POSTGRES:
             _local.conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
             _local.conn.autocommit = False
