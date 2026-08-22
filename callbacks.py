@@ -50,6 +50,7 @@ YT_LABELS = {
 # =============================================================
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
+    import db
     cid  = call.message.chat.id
     data = call.data
 
@@ -192,7 +193,6 @@ def callback_query(call):
             return
 
         elif action == "upload":
-            import db
             current = db.get_upload_dest(cid)
             # cycle: tg → gd → s3 → github → tg
             if current == 'tg':
@@ -267,7 +267,6 @@ def callback_query(call):
 
         elif action.startswith("dest|"):
             # Explicit destination pick: dest|tg / dest|gd / dest|s3 / dest|github
-            import db
             from config import pending_uploads
             choice = action.split("|", 1)[1]
             if choice not in ("tg", "gd", "s3", "github"):
